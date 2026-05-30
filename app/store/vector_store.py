@@ -23,6 +23,9 @@ class CircularStore:
         return text
     
     def is_new(self, circular: Circular) -> bool:
+        existing = self.db.get(where={"id": circular.id})
+        if existing:
+            return False
         query = (self.clean_text(circular.title) + ' ') * 3 + self.clean_text(circular.full_text[:300])
         results = self.db.similarity_search_with_score(query, k=1)
         if not results:
@@ -40,7 +43,7 @@ class CircularStore:
                 'date': circular.published_date.isoformat(),
             }
         )
-        self.db.add_documents([doc])
+        self.db.add_documents([doc], ids=[circular.id])
         
     def filter_new(self, circulars: list[Circular]) -> list[Circular]:
         new_ones = []
