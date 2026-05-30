@@ -6,11 +6,11 @@ scheduler = BlockingScheduler()
 scheduler.add_job(
     run_pipeline,
     trigger='interval',
-    minutes=1,
+    hours=12,
 )
 
 print('Scheduler started...')
-print('Pipeline will run every 1 minute.')
+print('Pipeline will run every 12 hours.')
 
 run_pipeline()
 
