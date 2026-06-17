@@ -75,7 +75,9 @@ This reduces the time required to review regulatory updates from hours to minute
 
 ## System Architecture
 
-![System Architecture](assets/architecture.png)
+<p align="center">
+  <img src="assets/architecture.png" width="900">
+</p>
 
 ---
 
@@ -152,7 +154,9 @@ regulatory-monitor/
 
 ## Example Workflow
 
-![Workflow](assets/workflow.png)
+<p align="center">
+  <img src="assets/workflow.png" width="850">
+</p>
 
 ---
 
