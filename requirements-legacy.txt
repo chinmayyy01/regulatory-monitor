@@ -1,0 +1,13 @@
+# Only for running the archived v1 pipeline under legacy/.
+# The live app does not need any of this.
+apscheduler==3.10.4
+chromadb
+langchain==1.3.2
+langchain-chroma==1.1.0
+langchain-core==1.4.0
+langchain-groq==1.1.2
+langchain-huggingface==1.2.2
+langchain-openai
+python-dotenv==1.2.4
+sentence-transformers
+slack-sdk==3.31.0

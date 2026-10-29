@@ -1,5 +1,20 @@
 # RegIntel AI
 
+> **Status: v2 in progress (W0 complete).**
+> v1 — fetch, summarise, score, Slack — is archived under `legacy/` and is no longer the product.
+> v2 is a multi-tenant compliance copilot: connect your policies, see which regulations bind you,
+> what went stale, and what to edit. Run `make help` for the available targets. Internal planning
+> notes are kept outside this repository on purpose.
+>
+> ```
+> make setup   # create .venv, install pinned deps
+> make test    # offline test suite, no network or API calls
+> make eval    # intentionally fails until W2
+> make audit   # pip-audit on pinned deps
+> ```
+
+v1 description, kept for reference:
+
 AI powered regulatory monitoring system that automatically tracks RBI and SEBI circulars, identifies new updates, summarizes them using LLMs, scores their business impact, and delivers actionable alerts to Slack.
 
 ---
@@ -87,31 +102,31 @@ This reduces the time required to review regulatory updates from hours to minute
 regulatory-monitor/
 
 ├── app/
+│   └── fetchers/          # live code in v2
+│       ├── base.py        # Circular, url allowlist, capped fetch
+│       ├── rbi.py
+│       └── sebi.py
+│
+├── legacy/                # archived v1 pipeline, not runnable as-is
 │   ├── chains/
-│   │   ├── summarizer.py
-│   │   └── impact_scorer.py
-│   │
-│   ├── fetchers/
-│   │   ├── base.py
-│   │   ├── rbi.py
-│   │   └── sebi.py
-│   │
 │   ├── notifier/
-│   │   └── slack.py
-│   │
 │   ├── store/
-│   │   └── vector_store.py
-│   │
 │   ├── scheduler.py
 │   └── run_scheduler.py
 │
-├── tests/
+├── scripts/
+│   ├── eval.py            # eval gate, fails until W2
+│   └── manual/            # exploratory scripts, never run by pytest
 │
-├── data/
+├── tests/                 # offline only
+├── evals/                 # eval datasets (.jsonl)
 │
+├── Makefile
 ├── requirements.txt
-├── .env.example
-└── README.md
+├── requirements-dev.txt
+├── requirements-legacy.txt
+├── pytest.ini
+└── .env.example
 ```
 
 ---

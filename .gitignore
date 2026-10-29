@@ -1,28 +1,45 @@
-# Virtual environment
+# virtualenv
 venv/
+.venv/
 
-# Python cache
+# python cache
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+*.egg-info/
+build/
+dist/
 
-# Environment variables
+# secrets and local config
 .env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
 
-# Vector DB / local data
+# local data and databases
 data/
+evals/private/
+*.sqlite3
+*.duckdb
 
-# VS Code
+# notebooks
+.ipynb_checkpoints/
+
+# tooling
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# editor and os
 .vscode/
-
-# OS junk
+.idea/
 .DS_Store
 Thumbs.db
 
-# Testing / coverage
-.pytest_cache/
-.coverage
-
-# Logs
+# logs
 *.log
+
+# internal planning — never published
+notes/

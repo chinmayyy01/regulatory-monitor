@@ -1,18 +1,41 @@
-from app.fetchers.rbi import fetch_rbi_circulars 
-from app.fetchers.sebi import fetch_sebi_circulars 
+from datetime import datetime
 
-print('=== RBI ===') 
-rbi = fetch_rbi_circulars(limit=3) 
-print(f'Got {len(rbi)} circulars') 
-if rbi: 
-    print(f'Title:   {rbi[0].title}') 
-    print(f'Date:    {rbi[0].published_date}') 
-    print(f'Preview: {rbi[0].full_text[:150]}...') 
+import pytest
 
-print() 
-print('=== SEBI ===') 
-sebi = fetch_sebi_circulars(limit=3) 
-print(f'Got {len(sebi)} circulars') 
-if sebi: 
-    print(f'Title:   {sebi[0].title}') 
-    print(f'Date:    {sebi[0].published_date}') 
+from app.fetchers.base import Circular, fetch_bytes, is_allowed_url
+
+
+def test_allows_regulator_hosts():
+    assert is_allowed_url("https://www.rbi.org.in/scripts/NotificationUser.aspx")
+    assert is_allowed_url("https://rbidocs.rbi.org.in/rdocs/notification/PDFs/x.pdf")
+    assert is_allowed_url("https://www.sebi.gov.in/sebi_data/attachdocs/x.pdf")
+
+
+def test_blocks_other_hosts():
+    assert not is_allowed_url("https://example.com/circular")
+    assert not is_allowed_url("https://rbi.org.in.evil.com/circular")
+    assert not is_allowed_url("http://127.0.0.1:8000/admin")
+    assert not is_allowed_url("https://192.168.1.1/")
+
+
+def test_blocks_non_http_schemes():
+    assert not is_allowed_url("file:///etc/passwd")
+    assert not is_allowed_url("javascript:alert(1)")
+    assert not is_allowed_url("")
+
+
+def test_fetch_bytes_refuses_unknown_hosts():
+    with pytest.raises(ValueError):
+        fetch_bytes("https://example.com/")
+
+
+def test_circular_raw_html_is_optional():
+    circular = Circular(
+        id="https://www.rbi.org.in/x",
+        title="Some circular",
+        source="RBI",
+        url="https://www.rbi.org.in/x",
+        published_date=datetime(2026, 1, 1),
+        full_text="body",
+    )
+    assert circular.raw_html is None
