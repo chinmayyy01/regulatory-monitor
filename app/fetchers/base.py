@@ -6,7 +6,7 @@ from urllib.parse import urljoin, urlparse
 import requests
 
 ALLOWED_HOSTS = ("rbi.org.in", "sebi.gov.in")
-MAX_RESPONSE_BYTES = 5 * 1024 * 1024
+MAX_RESPONSE_BYTES = 20 * 1024 * 1024
 MAX_REDIRECTS = 3
 REQUEST_TIMEOUT_SECONDS = 15
 CHUNK_SIZE = 65536
@@ -46,14 +46,27 @@ def _read_capped(response: requests.Response, url: str) -> bytes:
     return b"".join(chunks)
 
 
-def fetch_bytes(url: str, timeout: int = REQUEST_TIMEOUT_SECONDS) -> bytes:
+def request_bytes(
+    method: str,
+    url: str,
+    data: Optional[dict] = None,
+    session: Optional[requests.Session] = None,
+    headers: Optional[dict] = None,
+    timeout: int = REQUEST_TIMEOUT_SECONDS,
+) -> bytes:
+    sender = session or requests
+    request_headers = {"User-Agent": USER_AGENT}
+    if headers:
+        request_headers.update(headers)
     current = url
     for _ in range(MAX_REDIRECTS + 1):
         if not is_allowed_url(current):
             raise ValueError(f"blocked url: {current}")
-        with requests.get(
+        with sender.request(
+            method,
             current,
-            headers={"User-Agent": USER_AGENT},
+            data=data,
+            headers=request_headers,
             timeout=timeout,
             stream=True,
             allow_redirects=False,
@@ -67,3 +80,21 @@ def fetch_bytes(url: str, timeout: int = REQUEST_TIMEOUT_SECONDS) -> bytes:
             response.raise_for_status()
             return _read_capped(response, current)
     raise ValueError(f"too many redirects: {url}")
+
+
+def fetch_bytes(
+    url: str,
+    session: Optional[requests.Session] = None,
+    headers: Optional[dict] = None,
+    timeout: int = REQUEST_TIMEOUT_SECONDS,
+) -> bytes:
+    return request_bytes("GET", url, session=session, headers=headers, timeout=timeout)
+
+
+def post_form(
+    url: str,
+    data: dict,
+    session: Optional[requests.Session] = None,
+    timeout: int = REQUEST_TIMEOUT_SECONDS,
+) -> bytes:
+    return request_bytes("POST", url, data=data, session=session, timeout=timeout)

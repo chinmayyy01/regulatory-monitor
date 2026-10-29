@@ -13,6 +13,39 @@
 > make audit   # pip-audit on pinned deps
 > ```
 
+
+## Data ingestion (W1)
+
+Requires Postgres with the `vector` extension. Locally:
+
+```bash
+brew services run postgresql@18     # start, without registering at login
+createdb regintel                   # once
+make db-init                        # apply sql/001_init.sql
+```
+
+Load RBI notifications from the archive (month by month, resumable):
+
+```bash
+make ingest                                   # 2023-01 .. current month
+.venv/bin/python -m app.ingest.run --start 2025-01 --end 2025-03 --limit 20
+.venv/bin/python -m app.ingest.run --dry-run  # parse, do not write
+```
+
+Load PDFs you already have on disk (also the concierge onboarding path):
+
+```bash
+.venv/bin/python -m app.ingest.run --dir ~/Downloads/rbi-circulars
+```
+
+Each document is stored once (`url` and `sha256` are unique), the raw PDF is kept in
+`data/pdfs/<sha256>.pdf`, and every clause keeps its section number, heading path,
+page and per-page bounding box.
+
+Note: `rbidocs.rbi.org.in` sits behind a bot check and will serve a CAPTCHA page or drop
+the connection when it sees a scraper. The loader refuses to treat that page as a PDF and
+stops the run rather than retrying in a loop. If that happens, wait, or use `--dir`.
+
 v1 description, kept for reference:
 
 AI powered regulatory monitoring system that automatically tracks RBI and SEBI circulars, identifies new updates, summarizes them using LLMs, scores their business impact, and delivers actionable alerts to Slack.
