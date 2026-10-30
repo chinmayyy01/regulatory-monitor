@@ -68,6 +68,32 @@ def hidden_fields(html: bytes) -> dict:
     }
 
 
+SEBI_LISTING_URL = (
+    "https://www.sebi.gov.in/sebiweb/home/HomeAction.do?doListing=yes&sid=1&ssid=7&smid=0"
+)
+
+
+def fetch_sebi_listing(session) -> list[Announcement]:
+    html = request_bytes("GET", SEBI_LISTING_URL, session=session)
+    soup = BeautifulSoup(html, "lxml")
+    announcements = []
+    for row in soup.select("table tr"):
+        link = row.find("a", href=True)
+        if link is None or "/legal/circulars/" not in link["href"]:
+            continue
+        cells = [cell.get_text(" ", strip=True) for cell in row.find_all("td")]
+        date_text = cells[0] if cells else ""
+        announcements.append(
+            Announcement(
+                title=link.get_text(" ", strip=True),
+                date_issued=parse_date(date_text),
+                detail_url=urljoin(SEBI_LISTING_URL, link["href"]),
+                pdf_url=None,
+            )
+        )
+    return announcements
+
+
 def fetch_month(session, year: int, month: int) -> list[Announcement]:
     listing = request_bytes("GET", ARCHIVE_URL, session=session)
     form = hidden_fields(listing)

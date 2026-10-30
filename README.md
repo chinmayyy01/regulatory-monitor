@@ -16,7 +16,7 @@
 
 ## Data ingestion (W1)
 
-Requires Postgres with the `vector` extension. Locally:
+Requires Postgres with the `vector` extension:
 
 ```bash
 brew services run postgresql@18     # start, without registering at login
@@ -24,27 +24,44 @@ createdb regintel                   # once
 make db-init                        # apply sql/001_init.sql
 ```
 
-Load RBI notifications from the archive (month by month, resumable):
+### Where the text comes from
+
+| Source | Route | What we get |
+| --- | --- | --- |
+| RBI | `BS_CircularIndexDisplay.aspx?Id=…` detail pages, HTML | full text as paragraphs, no page geometry |
+| SEBI | listing -> detail page -> `sebi_data/attachdocs/*.pdf` | full text with page and bbox |
+
+RBI's PDF host (`rbidocs.rbi.org.in`) sits behind a bot check that serves a CAPTCHA page to
+automated clients. The HTML detail page carries the same circular text and is not blocked, so RBI
+is ingested from HTML and its `pdf_url` is recorded for provenance only. SEBI PDFs download fine
+and keep full geometry.
+
+### Commands
 
 ```bash
-make ingest                                   # 2023-01 .. current month
-.venv/bin/python -m app.ingest.run --start 2025-01 --end 2025-03 --limit 20
+make ingest                                   # backfill RBI 2023-01..now + SEBI page 1
+make daily                                    # one incremental pass (current + previous month)
+.venv/bin/python -m app.ingest.run --source rbi --start 2025-01 --end 2025-03 --limit 20
+.venv/bin/python -m app.ingest.run --source sebi --limit 5
+.venv/bin/python -m app.ingest.run --source dir --dir ~/Downloads/rbi-circulars
 .venv/bin/python -m app.ingest.run --dry-run  # parse, do not write
 ```
 
-Load PDFs you already have on disk (also the concierge onboarding path):
+`make schedule` installs a launchd job that runs the incremental pass every day at 06:00 and logs to
+`data/logs/`. `make unschedule` removes it.
 
-```bash
-.venv/bin/python -m app.ingest.run --dir ~/Downloads/rbi-circulars
-```
+### Storage
 
-Each document is stored once (`url` and `sha256` are unique), the raw PDF is kept in
-`data/pdfs/<sha256>.pdf`, and every clause keeps its section number, heading path,
-page and per-page bounding box.
+Raw PDFs are **not** archived. For each document we keep:
 
-Note: `rbidocs.rbi.org.in` sits behind a bot check and will serve a CAPTCHA page or drop
-the connection when it sees a scraper. The loader refuses to treat that page as a PDF and
-stops the run rather than retrying in a loop. If that happens, wait, or use `--dir`.
+- the parsed clauses in Postgres (text, section number, heading path, page, bbox, spans),
+- one gzipped snapshot of the source HTML/PDF in `data/raw/<sha256>.gz` (~17 KB average),
+- the `pdf_url`, so the original can be re-fetched if ever needed.
+
+Measured on 86 documents / 2,396 clauses: 1.6 MB of snapshots and 9.5 MB of Postgres — about
+110 KB per document in the database and 17 KB on disk, versus ~350 KB for the raw PDF alone.
+PDFs are already internally compressed, so gzipping them saves almost nothing; the saving comes
+from not storing them at all.
 
 v1 description, kept for reference:
 

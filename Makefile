@@ -27,8 +27,23 @@ db-init: ## create the Postgres tables from sql/001_init.sql
 ingest: ## load RBI circulars into Postgres
 	$(PY) -m app.ingest.run
 
+daily: ## fetch new RBI and SEBI documents once
+	$(PY) -m app.ingest.daily
+
+schedule: ## install a 06:00 daily launchd job (macOS)
+	mkdir -p $(HOME)/Library/LaunchAgents data/logs
+	sed -e 's|__PROJECT_DIR__|$(CURDIR)|g' -e 's|__PYTHON__|$(CURDIR)/.venv/bin/python|g' scripts/launchd/com.regintel.daily.plist.template > $(HOME)/Library/LaunchAgents/com.regintel.daily.plist
+	-launchctl unload $(HOME)/Library/LaunchAgents/com.regintel.daily.plist
+	launchctl load $(HOME)/Library/LaunchAgents/com.regintel.daily.plist
+	@echo "installed: daily at 06:00, logs in data/logs/"
+
+unschedule: ## remove the daily launchd job
+	-launchctl unload $(HOME)/Library/LaunchAgents/com.regintel.daily.plist
+	rm -f $(HOME)/Library/LaunchAgents/com.regintel.daily.plist
+	@echo "removed daily job"
+
 clean: ## remove caches and the virtualenv
 	rm -rf .venv .pytest_cache
 	find . -name __pycache__ -type d -prune -exec rm -rf {} +
 
-.PHONY: help setup test eval audit db-init ingest clean
+.PHONY: help setup test eval audit db-init ingest daily schedule unschedule clean

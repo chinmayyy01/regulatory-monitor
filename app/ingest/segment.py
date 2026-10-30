@@ -47,7 +47,7 @@ class Clause:
     heading_path: list[str]
     text: str
     page: int
-    bbox: list[float]
+    bbox: list[float] | None
     spans: list[dict]
 
 
