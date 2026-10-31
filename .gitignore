@@ -43,3 +43,9 @@ Thumbs.db
 
 # internal planning — never published
 notes/
+
+# web
+web/node_modules/
+web/.next/
+web/out/
+web/next-env.d.ts

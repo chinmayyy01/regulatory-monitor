@@ -21,6 +21,12 @@ eval: ## run the evaluation harness (intentionally fails until W2)
 tenant: ## onboard a tenant: make tenant NAME=acme ENTITY=nbfc PRODUCTS=lending DIR=~/policies
 	$(PY) -m app.tenant.ingest --name "$(NAME)" --entity-type "$(ENTITY)" $(if $(PRODUCTS),--products "$(PRODUCTS)",) $(if $(DIR),--dir "$(DIR)",)
 
+api: ## run the FastAPI backend on :8000
+	$(PY) -m uvicorn api.main:app --reload --port 8000
+
+web: ## run the Next UI on :3100 (needs make api in another shell)
+	npm --prefix web run dev -- -p 3100
+
 ask: ## ask a question: make ask TENANT=demo-fintech Q="what changes for us?"
 	$(PY) -m app.chat.ask "$(Q)" --tenant "$(TENANT)"
 
@@ -64,4 +70,4 @@ clean: ## remove caches and the virtualenv
 	rm -rf .venv .pytest_cache
 	find . -name __pycache__ -type d -prune -exec rm -rf {} +
 
-.PHONY: help setup test eval eval-obligations extract tenant map feed ask audit db-init ingest daily schedule unschedule clean
+.PHONY: help setup test eval eval-obligations extract tenant map feed ask api web audit db-init ingest daily schedule unschedule clean

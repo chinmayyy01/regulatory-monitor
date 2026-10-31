@@ -129,6 +129,27 @@ markdown digest to `data/change/`:
 
 Email is deliberately not wired up — no credentials, and the digest file is the artifact.
 
+## Web app
+
+Two processes, one database:
+
+```bash
+make api                     # FastAPI on :8000, reads Postgres + pgvector
+make web                     # Next.js + Tailwind on :3100
+```
+
+- `/` — tenants and their document counts.
+- `/tenants/[id]` — verdict summary and the gap list, each with the regulation quote and the
+  matching (or missing) policy quote.
+- `/tenants/[id]/chat` — ask a question, get claims with citations, or an explicit
+  "not enough evidence".
+
+The browser talks to a Next route handler (`/api/ask`), which proxies to FastAPI, so the backend URL
+never reaches the client and CORS is not part of the design.
+
+**Not there yet:** no login, no row-level security, no upload UI. The tenant switcher is a demo
+affordance. Do not put a real tenant's documents in it until auth and RLS exist.
+
 ## Corpus
 
 As of the last backfill: **1,050 documents / 85,236 clauses** (RBI notifications and directions from
