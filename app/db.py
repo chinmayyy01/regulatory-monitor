@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-SCHEMA_PATH = Path(__file__).resolve().parent.parent / "sql" / "001_init.sql"
+SQL_DIR = Path(__file__).resolve().parent.parent / "sql"
 
 
 def database_url() -> str:
@@ -21,14 +21,15 @@ def connect() -> psycopg.Connection:
 
 
 def apply_schema(connection: psycopg.Connection) -> None:
-    connection.execute(SCHEMA_PATH.read_text(encoding="utf-8"))
+    for path in sorted(SQL_DIR.glob("*.sql")):
+        connection.execute(path.read_text(encoding="utf-8"))
     connection.commit()
 
 
 def main() -> None:
     with connect() as connection:
         apply_schema(connection)
-    print(f"schema applied from {SCHEMA_PATH.name}")
+    print(f"schema applied from {SQL_DIR}")
 
 
 if __name__ == "__main__":

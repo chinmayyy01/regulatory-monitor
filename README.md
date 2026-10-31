@@ -50,6 +50,33 @@ make daily                                    # one incremental pass (current + 
 `make schedule` installs a launchd job that runs the incremental pass every day at 06:00 and logs to
 `data/logs/`. `make unschedule` removes it.
 
+## Obligation extraction (W2)
+
+Every clause that contains obligation language (`shall`, `must`, `may not`, `required to`,
+`permitted to`) is sent to `openai/gpt-oss-20b`, which returns structured obligations. A
+deterministic layer then validates the result, attaches scope facets (bank, NBFC, payment system
+operator, …), and resolves an effective date from phrases like *with effect from 1 April 2025*,
+falling back to the document date.
+
+```bash
+.venv/bin/python -m app.extract.run --limit 50 --dry-run   # call the model, write nothing
+.venv/bin/python -m app.extract.run --limit 200            # store obligations
+.venv/bin/python -m app.extract.run --recompute            # wipe and redo
+make eval-obligations                                      # precision/recall on the gold set
+```
+
+The model is not trusted: an obligation is dropped if the action is a commencement or definition
+statement, if the actor is the regulator, if the modality is not `shall`/`shall_not`/`may`, or if
+the action is too short to mean anything. The raw model output is never stored.
+
+Current gold set: 24 hand-labelled clauses (`evals/obligations.jsonl`), 13 positive / 11 negative.
+
+```
+precision 0.923   recall 0.923   f1 0.923   modality accuracy 1.000
+```
+
+That set is small and self-labelled by the author. Treat it as a baseline, not a claim.
+
 ### Storage
 
 Raw PDFs are **not** archived. For each document we keep:
