@@ -1,11 +1,15 @@
-import json
 import re
 from dataclasses import dataclass
 
 from app.config import MODEL_JUDGE
 from app.extract.llm import chat_json
+from app.search.span import find_span
 
 VERDICTS = {"satisfied", "partial", "missing"}
+COMMITMENT_RE = re.compile(
+    r"\b(?:shall|must|will)\b|\bwe\s+(?:ensure|verify|conduct|obtain|maintain|report|retain|appoint|review)\b",
+    re.IGNORECASE,
+)
 MAX_CANDIDATES = 5
 
 SYSTEM_PROMPT = """You compare one regulatory obligation with a company's own policy clauses.
@@ -35,10 +39,8 @@ class Judgment:
     evidence_regulation: str
     evidence_policy: str
     reason: str
-
-
-def normalize(text: str) -> str:
-    return " ".join(text.lower().split())
+    regulation_span: dict | None = None
+    policy_span: dict | None = None
 
 
 def validate(payload: dict, obligation_text: str, candidates: list[str]) -> Judgment | None:
@@ -61,10 +63,16 @@ def validate(payload: dict, obligation_text: str, candidates: list[str]) -> Judg
     policy_quote = _clean(payload.get("evidence_policy"))
     if not regulation_quote or not policy_quote:
         return None
-    if normalize(regulation_quote) not in normalize(obligation_text):
+
+    regulation_span = find_span(obligation_text, regulation_quote)
+    policy_span = find_span(candidates[index], policy_quote)
+    if regulation_span is None or policy_span is None:
         return None
-    if normalize(policy_quote) not in normalize(candidates[index]):
-        return None
+
+    reason = _reason(payload)
+    if verdict == "satisfied" and not COMMITMENT_RE.search(policy_quote):
+        verdict = "partial"
+        reason = f"{reason} [downgraded: evidence describes a practice, not a commitment]"
 
     return Judgment(
         index,
@@ -72,7 +80,9 @@ def validate(payload: dict, obligation_text: str, candidates: list[str]) -> Judg
         _confidence(payload.get("confidence")),
         regulation_quote,
         policy_quote,
-        _reason(payload),
+        reason,
+        regulation_span,
+        policy_span,
     )
 
 

@@ -21,6 +21,9 @@ eval: ## run the evaluation harness (intentionally fails until W2)
 tenant: ## onboard a tenant: make tenant NAME=acme ENTITY=nbfc PRODUCTS=lending DIR=~/policies
 	$(PY) -m app.tenant.ingest --name "$(NAME)" --entity-type "$(ENTITY)" $(if $(PRODUCTS),--products "$(PRODUCTS)",) $(if $(DIR),--dir "$(DIR)",)
 
+feed: ## diff the last two verdict runs for a tenant: make feed TENANT=demo-fintech
+	$(PY) -m app.change.feed --tenant "$(TENANT)"
+
 map: ## map obligations to a tenant: make map TENANT=demo-fintech
 	$(PY) -m app.mapping.run --tenant "$(TENANT)" --limit $(if $(LIMIT),$(LIMIT),25)
 
@@ -58,4 +61,4 @@ clean: ## remove caches and the virtualenv
 	rm -rf .venv .pytest_cache
 	find . -name __pycache__ -type d -prune -exec rm -rf {} +
 
-.PHONY: help setup test eval eval-obligations extract tenant map audit db-init ingest daily schedule unschedule clean
+.PHONY: help setup test eval eval-obligations extract tenant map feed audit db-init ingest daily schedule unschedule clean

@@ -101,6 +101,34 @@ Mapping runs in four steps:
 A `missing` verdict stores no clause and no quotes. Every run gets a `run_id`, so verdicts can be
 diffed across runs later — that diff is the change feed (W4).
 
+## Change feed and time (W4)
+
+```bash
+make feed TENANT=demo-fintech      # diff the last two verdict runs
+.venv/bin/python -m app.temporal.extract          # find amendment/repeal statements
+.venv/bin/python -m app.temporal.extract --dry-run
+```
+
+**Time.** `clause_in_force` is a view: each clause is valid from its document's issue date, and is closed
+when an `amends`/`repeals` relation with that section number takes effect. `app/temporal/validity.py`
+exposes `in_force_clause_ids(as_of)`.
+
+**Relations** are extracted conservatively by regex (`Paragraph 14 shall be amended`,
+`shall supersede`, `stand repealed`). Target documents are resolved only when the title match is
+unambiguous; unresolved targets are stored with their sentence and ignored by the view. On the current
+corpus 22 relations were found and none resolved, because the referenced master directions are not
+ingested yet.
+
+**The feed** compares the last two runs for a tenant, takes the best verdict per obligation, and writes a
+markdown digest to `data/change/`:
+
+```
+1 changes: 1 worsened.
+- **worsened** (satisfied -> missing) undertake due diligence as per guidelines in this regard
+```
+
+Email is deliberately not wired up — no credentials, and the digest file is the artifact.
+
 ### Storage
 
 Raw PDFs are **not** archived. For each document we keep:

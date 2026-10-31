@@ -31,7 +31,7 @@ def test_judge_accepts_verbatim_quotes():
         "verdict": "satisfied",
         "confidence": 0.9,
         "evidence_regulation": "carry out customer due diligence",
-        "evidence_policy": "verify identity before opening any account",
+        "evidence_policy": "We verify identity before opening any account",
         "reason": "policy requires identity verification before account opening",
     }
     result = validate(payload, OBLIGATION, [POLICY])
@@ -58,7 +58,7 @@ def test_judge_rejects_quote_not_in_obligation():
         "verdict": "satisfied",
         "confidence": 0.9,
         "evidence_regulation": "maintain records for five years",
-        "evidence_policy": "verify identity before opening any account",
+        "evidence_policy": "We verify identity before opening any account",
         "reason": "wrong regulation quote",
     }
     assert validate(payload, OBLIGATION, [POLICY]) is None
@@ -83,3 +83,19 @@ def test_unknown_verdict_rejected():
     payload = {"clause_index": 0, "verdict": "compliant", "confidence": 0.9,
                "evidence_regulation": "x", "evidence_policy": "y", "reason": "z"}
     assert validate(payload, OBLIGATION, [POLICY]) is None
+
+
+def test_descriptive_evidence_is_downgraded_to_partial():
+    payload = {
+        "clause_index": 0,
+        "verdict": "satisfied",
+        "confidence": 0.9,
+        "evidence_regulation": "carry out customer due diligence",
+        "evidence_policy": "identity is verified before opening any account",
+        "reason": "describes a practice",
+    }
+    policy = "Identity is verified before opening any account."
+    result = validate(payload, OBLIGATION, [policy])
+    assert result is not None
+    assert result.verdict == "partial"
+    assert "downgraded" in result.reason

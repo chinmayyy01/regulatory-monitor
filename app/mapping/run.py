@@ -3,6 +3,8 @@ import os
 import time
 import uuid
 
+from psycopg.types.json import Jsonb
+
 from app.config import MODEL_JUDGE
 from app.db import apply_schema, connect
 from app.extract.llm import LlmError
@@ -39,8 +41,9 @@ LIMIT %s
 INSERT = """
 INSERT INTO mapping
     (obligation_id, tenant_clause_id, verdict, confidence,
-     evidence_regulation, evidence_policy, reason, model, run_id)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+     evidence_regulation, evidence_policy, reason, model, run_id,
+     regulation_span, policy_span, tenant_id)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 ON CONFLICT (obligation_id, tenant_clause_id, run_id) DO NOTHING
 """
 
@@ -136,6 +139,9 @@ def run(connection, tenant_name: str, args) -> tuple[int, int, int]:
                     result.reason,
                     MODEL_JUDGE,
                     run_id,
+                    Jsonb(result.regulation_span),
+                    Jsonb(result.policy_span),
+                    tenant_id,
                 ),
             )
             connection.commit()
