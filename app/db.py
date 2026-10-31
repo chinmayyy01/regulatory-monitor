@@ -20,6 +20,14 @@ def connect() -> psycopg.Connection:
     return psycopg.connect(database_url())
 
 
+def connect_app(tenant_id: int | None = None) -> psycopg.Connection:
+    url = os.getenv("DATABASE_URL_APP", "").strip() or database_url()
+    connection = psycopg.connect(url)
+    if tenant_id is not None:
+        connection.execute("SELECT set_config('app.tenant_id', %s, false)", (str(tenant_id),))
+    return connection
+
+
 def apply_schema(connection: psycopg.Connection) -> None:
     for path in sorted(SQL_DIR.glob("*.sql")):
         connection.execute(path.read_text(encoding="utf-8"))

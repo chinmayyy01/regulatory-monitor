@@ -18,6 +18,9 @@ test: ## run the offline test suite (no network, no API calls)
 eval: ## run the evaluation harness (intentionally fails until W2)
 	$(PY) scripts/eval.py
 
+user: ## create a login: make user EMAIL=you@co.dev PASSWORD=... TENANT=myco
+	$(PY) -m app.auth.cli --email "$(EMAIL)" --password "$(PASSWORD)" --tenant "$(TENANT)"
+
 tenant: ## onboard a tenant: make tenant NAME=acme ENTITY=nbfc PRODUCTS=lending DIR=~/policies
 	$(PY) -m app.tenant.ingest --name "$(NAME)" --entity-type "$(ENTITY)" $(if $(PRODUCTS),--products "$(PRODUCTS)",) $(if $(DIR),--dir "$(DIR)",)
 
@@ -70,4 +73,4 @@ clean: ## remove caches and the virtualenv
 	rm -rf .venv .pytest_cache
 	find . -name __pycache__ -type d -prune -exec rm -rf {} +
 
-.PHONY: help setup test eval eval-obligations extract tenant map feed ask api web audit db-init ingest daily schedule unschedule clean
+.PHONY: help setup test eval eval-obligations extract user tenant map feed ask api web audit db-init ingest daily schedule unschedule clean

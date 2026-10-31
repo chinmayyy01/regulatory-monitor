@@ -1,4 +1,8 @@
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+
 export const API_URL = process.env.API_URL ?? "http://localhost:8000";
+export const SESSION_COOKIE = "regintel_session";
 
 export type Tenant = {
   id: number;
@@ -49,27 +53,35 @@ export type AskResponse = {
   claims: Claim[];
 };
 
-async function get<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_URL}${path}`, { cache: "no-store" });
+export async function sessionToken(): Promise<string | null> {
+  const store = await cookies();
+  return store.get(SESSION_COOKIE)?.value ?? null;
+}
+
+async function get<T>(path: string, token: string): Promise<T> {
+  const response = await fetch(`${API_URL}${path}`, {
+    cache: "no-store",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (response.status === 401) {
+    redirect("/login");
+  }
   if (!response.ok) {
     throw new Error(`API ${response.status} on ${path}`);
   }
   return response.json() as Promise<T>;
 }
 
-export const listTenants = () => get<Tenant[]>("/api/tenants");
-export const getGaps = (tenantId: number) =>
-  get<GapsResponse>(`/api/tenants/${tenantId}/gaps`);
+export async function requireToken(): Promise<string> {
+  const token = await sessionToken();
+  if (!token) redirect("/login");
+  return token;
+}
 
-export async function ask(tenantId: number, question: string): Promise<AskResponse> {
-  const response = await fetch(`${API_URL}/api/tenants/${tenantId}/ask`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ question }),
-    cache: "no-store",
-  });
-  if (!response.ok) {
-    throw new Error(`API ${response.status}`);
-  }
-  return response.json() as Promise<AskResponse>;
+export async function listTenants(token: string): Promise<Tenant[]> {
+  return get<Tenant[]>("/api/tenants", token);
+}
+
+export async function getGaps(tenantId: number, token: string): Promise<GapsResponse> {
+  return get<GapsResponse>(`/api/tenants/${tenantId}/gaps`, token);
 }

@@ -1,7 +1,14 @@
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { API_URL } from "@/lib/api";
+import { API_URL, SESSION_COOKIE } from "@/lib/api";
 
 export async function POST(request: Request) {
+  const store = await cookies();
+  const token = store.get(SESSION_COOKIE)?.value;
+  if (!token) {
+    return NextResponse.json({ error: "not signed in" }, { status: 401 });
+  }
+
   let body: unknown;
   try {
     body = await request.json();
@@ -22,7 +29,10 @@ export async function POST(request: Request) {
     `${API_URL}/api/tenants/${tenantId as number}/ask`,
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
       body: JSON.stringify({ question: question.slice(0, 500) }),
       cache: "no-store",
     },

@@ -1,17 +1,22 @@
 import Link from "next/link";
-import { listTenants } from "@/lib/api";
+import { SignOutButton } from "@/components/SignOutButton";
+import { listTenants, requireToken } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const tenants = await listTenants();
+  const token = await requireToken();
+  const tenants = await listTenants(token);
 
   return (
     <div className="space-y-10">
       <section>
-        <h1 className="text-3xl font-semibold tracking-tight text-slate-100">
-          Compliance workspace
-        </h1>
+        <div className="flex items-start justify-between gap-4">
+          <h1 className="text-3xl font-semibold tracking-tight text-slate-100">
+            Compliance workspace
+          </h1>
+          <SignOutButton />
+        </div>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
           Which regulations bind you, which of your documents went stale, and what
           to edit. Every verdict is backed by a quote from both sides.

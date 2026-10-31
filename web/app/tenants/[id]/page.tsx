@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { GapCard } from "@/components/GapCard";
-import { getGaps, listTenants } from "@/lib/api";
+import { getGaps, listTenants, requireToken } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -16,11 +16,12 @@ export default async function TenantPage({
   const tenantId = Number(id);
   if (!Number.isFinite(tenantId)) notFound();
 
-  const tenants = await listTenants();
+  const token = await requireToken();
+  const tenants = await listTenants(token);
   const tenant = tenants.find((item) => item.id === tenantId);
   if (!tenant) notFound();
 
-  const { summary, gaps, run_id } = await getGaps(tenantId);
+  const { summary, gaps, run_id } = await getGaps(tenantId, token);
   const total = Object.values(summary).reduce((sum, value) => sum + value, 0);
 
   return (

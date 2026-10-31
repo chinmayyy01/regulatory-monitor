@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Chat } from "@/components/Chat";
-import { listTenants } from "@/lib/api";
+import { listTenants, requireToken } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +12,8 @@ export default async function ChatPage({
 }) {
   const { id } = await params;
   const tenantId = Number(id);
-  const tenants = await listTenants();
+  const token = await requireToken();
+  const tenants = await listTenants(token);
   const tenant = tenants.find((item) => item.id === tenantId);
   if (!tenant) notFound();
 

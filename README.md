@@ -129,6 +129,23 @@ markdown digest to `data/change/`:
 
 Email is deliberately not wired up — no credentials, and the digest file is the artifact.
 
+## Auth and isolation
+
+- Login is email + password. Passwords are hashed with `scrypt` (n=2^14, per-user salt) in
+  `app/auth/passwords.py`. Sessions are random 32-byte tokens; only their SHA-256 is stored.
+- The browser holds an HttpOnly, SameSite=Lax cookie. The API accepts `Authorization: Bearer <token>`.
+- Every tenant endpoint checks `user.tenant_id == tenant_id` and returns 403 otherwise.
+- **Row-level security is enforced in Postgres**, not only in application code. The API connects as
+  `regintel_app`, a non-superuser role, and sets `app.tenant_id` per connection. Policies on
+  `tenant_doc`, `tenant_clause` and `mapping` filter every row; with no tenant set, the role sees
+  nothing.
+
+Create a login:
+
+```bash
+make user EMAIL=you@company.dev PASSWORD='at-least-12-chars' TENANT=demo-fintech
+```
+
 ## Web app
 
 Two processes, one database:
