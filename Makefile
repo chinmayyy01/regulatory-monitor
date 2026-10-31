@@ -18,6 +18,12 @@ test: ## run the offline test suite (no network, no API calls)
 eval: ## run the evaluation harness (intentionally fails until W2)
 	$(PY) scripts/eval.py
 
+tenant: ## onboard a tenant: make tenant NAME=acme ENTITY=nbfc PRODUCTS=lending DIR=~/policies
+	$(PY) -m app.tenant.ingest --name "$(NAME)" --entity-type "$(ENTITY)" $(if $(PRODUCTS),--products "$(PRODUCTS)",) $(if $(DIR),--dir "$(DIR)",)
+
+map: ## map obligations to a tenant: make map TENANT=demo-fintech
+	$(PY) -m app.mapping.run --tenant "$(TENANT)" --limit $(if $(LIMIT),$(LIMIT),25)
+
 extract: ## extract obligations from pending clauses (respects the daily token budget)
 	$(PY) -m app.extract.run --limit 2000
 
@@ -52,4 +58,4 @@ clean: ## remove caches and the virtualenv
 	rm -rf .venv .pytest_cache
 	find . -name __pycache__ -type d -prune -exec rm -rf {} +
 
-.PHONY: help setup test eval eval-obligations extract audit db-init ingest daily schedule unschedule clean
+.PHONY: help setup test eval eval-obligations extract tenant map audit db-init ingest daily schedule unschedule clean

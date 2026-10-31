@@ -77,6 +77,30 @@ precision 0.923   recall 0.923   f1 0.923   modality accuracy 1.000
 
 That set is small and self-labelled by the author. Treat it as a baseline, not a claim.
 
+## Tenant onboarding and mapping (W3)
+
+A tenant is a company with a profile and a set of policy documents. Each document is cut into
+clauses and embedded locally (`BAAI/bge-small-en-v1.5`, 384 dimensions, no data leaves the machine).
+
+```bash
+make tenant NAME=demo-fintech ENTITY=commercial_bank PRODUCTS=lending DIR=~/policies
+make map TENANT=demo-fintech LIMIT=10
+.venv/bin/python -m app.mapping.run --tenant demo-fintech --obligation-ids 18,41 --dry-run
+```
+
+Mapping runs in four steps:
+
+1. **Applicability** — `obligation.scope_entities` ∩ tenant facets. Unscoped obligations apply to
+   everyone, because generic duties ("the entity shall maintain records") must not be dropped.
+2. **Retrieve** — pgvector top-k tenant clauses (`<=>` cosine), scoped to the tenant.
+3. **Judge** — `gpt-oss-120b` gets the obligation plus k clauses and returns one verdict
+   (`satisfied` / `partial` / `missing`) with quotes from both sides.
+4. **Verify** — both quotes must appear verbatim in their sources, otherwise the mapping is rejected
+   and nothing is stored.
+
+A `missing` verdict stores no clause and no quotes. Every run gets a `run_id`, so verdicts can be
+diffed across runs later — that diff is the change feed (W4).
+
 ### Storage
 
 Raw PDFs are **not** archived. For each document we keep:
