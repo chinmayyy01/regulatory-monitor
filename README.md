@@ -129,6 +129,32 @@ markdown digest to `data/change/`:
 
 Email is deliberately not wired up — no credentials, and the digest file is the artifact.
 
+## Chat over both corpora (W5)
+
+```bash
+make ask TENANT=demo-fintech Q="How long do we have to resolve a complaint?"
+.venv/bin/python -m app.chat.ask "What must banks do for priority sector lending targets?" --tenant demo-fintech
+.venv/bin/python -m app.chat.ask "..." --tenant demo-fintech --as-of 2025-06-01
+```
+
+Retrieval is hybrid over **both** corpora: dense (pgvector) plus lexical (`to_tsquery` over the
+question's significant words), fused with reciprocal rank fusion. Regulation clauses are filtered to
+those in force on the requested date; policy clauses are scoped to the tenant.
+
+Generation returns claims, each with citations that include a **verbatim quote**. Any claim whose quote
+cannot be located in the cited clause is dropped. If nothing survives, the answer is replaced with
+"not enough evidence in the indexed documents". Partial questions get partial answers.
+
+```
+- We resolve complaints within thirty days of receipt.
+    [policy #1] "Every complaint is acknowledged within forty eight hours and resolved within thirty days of receipt."
+      source: policy · Grievance Policy · s.1
+```
+
+**What is verified, and what is not.** We verify that every quote exists in the source it claims
+(character offsets included). We do *not* verify that the claim follows from the quote — that is
+entailment, and it needs a second model or a human. Do not describe this as hallucination-free.
+
 ### Storage
 
 Raw PDFs are **not** archived. For each document we keep:
