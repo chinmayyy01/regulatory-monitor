@@ -115,10 +115,14 @@ def build_prompt(obligation_text: str, candidates: list[str]) -> str:
     return "\n".join(blocks)
 
 
-def judge(obligation_text: str, candidates: list[str]) -> Judgment | None:
+def judge(
+    obligation_text: str,
+    candidates: list[str],
+    model: str = MODEL_JUDGE,
+) -> tuple[Judgment | None, int]:
     if not candidates:
-        return Judgment(-1, "missing", 1.0, "", "", "no policy clauses available")
-    payload, _usage = chat_json(SYSTEM_PROMPT, build_prompt(obligation_text, candidates), model=MODEL_JUDGE)
+        return Judgment(-1, "missing", 1.0, "", "", "no policy clauses available"), 0
+    payload, usage = chat_json(SYSTEM_PROMPT, build_prompt(obligation_text, candidates), model=model)
     if isinstance(payload, list):
         payload = payload[0] if payload and isinstance(payload[0], dict) else {}
-    return validate(payload, obligation_text, candidates)
+    return validate(payload, obligation_text, candidates), int(usage.get("total_tokens", 0))

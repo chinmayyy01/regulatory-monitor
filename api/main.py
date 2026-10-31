@@ -1,16 +1,23 @@
+import hashlib
 import os
 import time
+from types import SimpleNamespace
 from contextlib import asynccontextmanager
 from datetime import date
 from typing import Literal
 
-from fastapi import Depends, FastAPI, Header, HTTPException, status
+from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, Field
 
 from app.auth.passwords import verify_password
 from app.auth.sessions import create_session, delete_session, user_for_token
 from app.chat.answer import ask as answer_question
+from app.config import MODEL_WORKER
+from app.ingest.pdf import parse_pdf
+from app.ingest.segment import segment
+from app.mapping.run import run as run_mapping
+from app.tenant.ingest import embed_pending, store_document
 from app.chat.retrieve import gather
 from app.db import apply_schema, connect, connect_app
 
@@ -87,6 +94,16 @@ GROUP BY m.verdict
 
 USER_LOGIN = "SELECT id, email, password_hash, tenant_id, role FROM app_user WHERE email = %s"
 
+DOCUMENTS = """
+SELECT d.id, d.title, d.doc_type, d.version, d.effective_from, d.page_count, d.created_at,
+       (SELECT count(*) FROM tenant_clause c WHERE c.tenant_doc_id = d.id) AS clauses
+FROM tenant_doc d
+WHERE d.tenant_id = %s
+ORDER BY d.created_at DESC
+"""
+
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+
 
 class Tenant(BaseModel):
     id: int
@@ -143,6 +160,31 @@ class AskResponse(BaseModel):
     insufficient: bool
     rejected: int
     claims: list[Claim]
+
+
+class Document(BaseModel):
+    id: int
+    title: str
+    doc_type: str
+    version: str | None
+    effective_from: date | None
+    page_count: int
+    clauses: int
+    created_at: str
+
+
+class UploadResponse(BaseModel):
+    document_id: int
+    title: str
+    clauses: int
+    pages: int
+
+
+class MapResponse(BaseModel):
+    run_id: str | None
+    mapped: int
+    rejected: int
+    applicable: int
 
 
 class Credentials(BaseModel):
@@ -240,6 +282,101 @@ def tenants(user: SessionUser = Depends(require_user)) -> list[Tenant]:
         )
         for row in rows
     ]
+
+
+@app.get("/api/tenants/{tenant_id}/documents", response_model=list[Document])
+def documents(tenant_id: int, user: SessionUser = Depends(require_user)) -> list[Document]:
+    require_tenant(user, tenant_id)
+    with connect_app(user.tenant_id) as connection:
+        rows = connection.execute(DOCUMENTS, (tenant_id,)).fetchall()
+    return [
+        Document(
+            id=row[0],
+            title=row[1],
+            doc_type=row[2],
+            version=row[3],
+            effective_from=row[4],
+            page_count=row[5],
+            clauses=row[7],
+            created_at=row[6].isoformat(),
+        )
+        for row in rows
+    ]
+
+
+@app.post("/api/tenants/{tenant_id}/documents", response_model=UploadResponse, status_code=201)
+async def upload_document(
+    tenant_id: int,
+    file: UploadFile = File(...),
+    user: SessionUser = Depends(require_user),
+) -> UploadResponse:
+    require_tenant(user, tenant_id)
+
+    payload = await file.read(MAX_UPLOAD_BYTES + 1)
+    if len(payload) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="file is larger than 10 MB")
+    if not payload.startswith(b"%PDF"):
+        raise HTTPException(status_code=400, detail="only PDF files are accepted")
+
+    name = (file.filename or "policy.pdf").rsplit("/", 1)[-1]
+    title = name.removesuffix(".pdf").replace("_", " ").replace("-", " ").title() or "Policy"
+
+    try:
+        lines, pages = parse_pdf(payload)
+    except Exception:
+        raise HTTPException(status_code=400, detail="could not parse that PDF") from None
+    if not lines:
+        raise HTTPException(status_code=400, detail="that PDF has no extractable text")
+
+    digest = hashlib.sha256(payload).hexdigest()
+
+    with connect_app(user.tenant_id) as connection:
+        document_id = store_document(
+            connection,
+            tenant_id,
+            title,
+            "policy",
+            segment(lines),
+            digest,
+            pages,
+        )
+        if document_id is None:
+            raise HTTPException(status_code=409, detail="this document is already uploaded")
+        embed_pending(connection, tenant_id)
+        clause_count = connection.execute(
+            "SELECT count(*) FROM tenant_clause WHERE tenant_doc_id = %s", (document_id,)
+        ).fetchone()[0]
+
+    return UploadResponse(document_id=document_id, title=title, clauses=clause_count, pages=pages)
+
+
+@app.post("/api/tenants/{tenant_id}/map", response_model=MapResponse)
+def map_tenant(
+    tenant_id: int,
+    limit: int = 10,
+    user: SessionUser = Depends(require_user),
+) -> MapResponse:
+    require_tenant(user, tenant_id)
+
+    with connect_app(user.tenant_id) as connection:
+        name = connection.execute("SELECT name FROM tenant WHERE id = %s", (tenant_id,)).fetchone()[0]
+        options = SimpleNamespace(
+            limit=max(1, min(limit, 25)),
+            candidates=5,
+            sleep=0.2,
+            dry_run=False,
+            ids=None,
+            model=MODEL_WORKER,
+        )
+        mapped, rejected, applicable = run_mapping(connection, name, options)
+        run_id = connection.execute(LATEST_RUN, (tenant_id,)).fetchone()
+
+    return MapResponse(
+        run_id=run_id[0] if run_id else None,
+        mapped=mapped,
+        rejected=rejected,
+        applicable=applicable,
+    )
 
 
 @app.get("/api/tenants/{tenant_id}/gaps", response_model=GapsResponse)

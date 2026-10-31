@@ -1,6 +1,7 @@
 import argparse
 import os
 import time
+from collections import deque
 import uuid
 
 from psycopg.types.json import Jsonb
@@ -48,8 +49,22 @@ ON CONFLICT (obligation_id, tenant_clause_id, run_id) DO NOTHING
 """
 
 
-def pace(tokens_used: int, floor: float) -> None:
-    time.sleep(max(floor, tokens_used * 60 / TPM_LIMIT))
+class TokenPacer:
+    def __init__(self, tokens_per_minute: int = TPM_LIMIT) -> None:
+        self.tokens_per_minute = tokens_per_minute
+        self.events: deque[tuple[float, int]] = deque()
+
+    def wait(self, tokens_used: int, floor: float = 0.0) -> None:
+        if floor:
+            time.sleep(floor)
+        now = time.time()
+        while self.events and now - self.events[0][0] >= 60:
+            self.events.popleft()
+        used = sum(tokens for _, tokens in self.events)
+        if self.events and used + tokens_used > self.tokens_per_minute:
+            time.sleep(max(0.0, 60 - (now - self.events[0][0]) + 0.5))
+            self.events.clear()
+        self.events.append((time.time(), tokens_used))
 
 
 def embedding_pending(connection, limit: int = 500) -> int:
@@ -86,6 +101,7 @@ def run(connection, tenant_name: str, args) -> tuple[int, int, int]:
         flush=True,
     )
 
+    pacer = TokenPacer()
     mapped = 0
     failed = 0
     consecutive = 0
@@ -102,7 +118,11 @@ def run(connection, tenant_name: str, args) -> tuple[int, int, int]:
             continue
 
         try:
-            result = judge(obligation_text, [row[1] for row in candidates])
+            result, used = judge(
+                obligation_text,
+                [row[1] for row in candidates],
+                model=getattr(args, "model", MODEL_JUDGE),
+            )
         except LlmError as error:
             failed += 1
             consecutive += 1
@@ -116,7 +136,7 @@ def run(connection, tenant_name: str, args) -> tuple[int, int, int]:
         if result is None:
             failed += 1
             print(f"  {obligation_id}: rejected (unverifiable quote or bad verdict)", flush=True)
-            pace(3000, args.sleep)
+            pacer.wait(used, args.sleep)
             continue
 
         clause_id = candidates[result.clause_index][0] if result.clause_index >= 0 else None
@@ -148,7 +168,7 @@ def run(connection, tenant_name: str, args) -> tuple[int, int, int]:
             mapped += 1
             print(f"  {result.verdict:9} | {action[:60]}", flush=True)
 
-        pace(3000, args.sleep)
+        pacer.wait(used, args.sleep)
 
     return mapped, failed, len(applicable)
 

@@ -85,3 +85,18 @@ export async function listTenants(token: string): Promise<Tenant[]> {
 export async function getGaps(tenantId: number, token: string): Promise<GapsResponse> {
   return get<GapsResponse>(`/api/tenants/${tenantId}/gaps`, token);
 }
+
+export type DocumentRow = {
+  id: number;
+  title: string;
+  doc_type: string;
+  version: string | null;
+  effective_from: string | null;
+  page_count: number;
+  clauses: number;
+  created_at: string;
+};
+
+export async function listDocuments(tenantId: number, token: string): Promise<DocumentRow[]> {
+  return get<DocumentRow[]>(`/api/tenants/${tenantId}/documents`, token);
+}

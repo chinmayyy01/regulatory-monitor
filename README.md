@@ -129,6 +129,18 @@ markdown digest to `data/change/`:
 
 Email is deliberately not wired up — no credentials, and the digest file is the artifact.
 
+## Uploading a policy
+
+On the tenant page you can drop in a PDF (max 10 MB). It is validated by extension **and** magic bytes,
+parsed, cut into clauses, and embedded locally — no text leaves the machine. Duplicates are rejected by
+SHA-256 per tenant. "Re-check 5 obligations" runs the mapping judge on the next few applicable
+obligations and refreshes the verdicts.
+
+```bash
+# the same thing without a browser
+curl -b cookie -F tenantId=1 -F file=@policy.pdf http://localhost:3100/api/upload
+```
+
 ## Auth and isolation
 
 - Login is email + password. Passwords are hashed with `scrypt` (n=2^14, per-user salt) in
