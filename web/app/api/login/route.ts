@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
+import { isSameOrigin } from "@/lib/origin";
 import { API_URL, SESSION_COOKIE } from "@/lib/api";
 
 export async function POST(request: Request) {
+  if (!isSameOrigin(request)) {
+    return NextResponse.json({ error: "cross-origin request rejected" }, { status: 403 });
+  }
+
   let body: unknown;
   try {
     body = await request.json();

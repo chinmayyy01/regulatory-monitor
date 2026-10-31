@@ -152,6 +152,14 @@ curl -b cookie -F tenantId=1 -F file=@policy.pdf http://localhost:3100/api/uploa
   `tenant_doc`, `tenant_clause` and `mapping` filter every row; with no tenant set, the role sees
   nothing.
 
+Sessions can be listed and revoked (`GET /api/auth/sessions`, `DELETE /api/auth/sessions/{id}`,
+`POST /api/auth/logout-all`), and every sign-in, failure, logout and revocation is written to
+`auth_event`. Failed logins are counted in Postgres over a 15-minute window, so a restart does not
+clear a lockout.
+
+All browser mutations go through Next route handlers that reject cross-origin requests using
+`Sec-Fetch-Site` and `Origin`.
+
 Create a login:
 
 ```bash

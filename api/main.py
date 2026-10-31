@@ -6,12 +6,20 @@ from contextlib import asynccontextmanager
 from datetime import date
 from typing import Literal
 
-from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile, status
+from fastapi import Depends, FastAPI, File, Header, HTTPException, Request, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, Field
 
+from app.auth.audit import clear_failures, recent_failures, record_attempt, record_event
 from app.auth.passwords import verify_password
-from app.auth.sessions import create_session, delete_session, user_for_token
+from app.auth.sessions import (
+    create_session,
+    delete_session,
+    list_sessions,
+    revoke_all,
+    revoke_session,
+    user_for_token,
+)
 from app.chat.answer import ask as answer_question
 from app.config import MODEL_WORKER
 from app.ingest.pdf import parse_pdf
@@ -21,9 +29,7 @@ from app.tenant.ingest import embed_pending, store_document
 from app.chat.retrieve import gather
 from app.db import apply_schema, connect, connect_app
 
-MAX_ATTEMPTS = 5
-LOCKOUT_SECONDS = 60
-_attempts: dict[str, tuple[int, float]] = {}
+MAX_FAILURES = 5
 
 
 @asynccontextmanager
@@ -221,6 +227,12 @@ def require_user(authorization: str | None = Header(default=None)) -> SessionUse
     return SessionUser(id=row[0], email=row[1], tenant_id=row[2], role=row[3])
 
 
+def require_owner(user: SessionUser = Depends(require_user)) -> SessionUser:
+    if user.role != "owner":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="owner role required")
+    return user
+
+
 def require_tenant(user: SessionUser, tenant_id: int) -> None:
     if user.tenant_id != tenant_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="not your tenant")
@@ -231,21 +243,42 @@ def health() -> dict:
     return {"status": "ok"}
 
 
+def client_ip(request: Request) -> str:
+    forwarded = request.headers.get("x-forwarded-for", "")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else ""
+
+
 @app.post("/api/auth/login", response_model=LoginResponse)
-def login(credentials: Credentials) -> LoginResponse:
+def login(credentials: Credentials, request: Request) -> LoginResponse:
     email = credentials.email.lower().strip()
-    attempts, locked_until = _attempts.get(email, (0, 0.0))
-    if locked_until > time.time():
-        raise HTTPException(status_code=429, detail="too many attempts, try again later")
+    ip = client_ip(request)
+    agent = request.headers.get("user-agent", "")
 
     with connect_app() as connection:
+        if recent_failures(connection, email) >= MAX_FAILURES:
+            record_event(connection, "login_locked", email=email, ip=ip, user_agent=agent)
+            raise HTTPException(status_code=429, detail="too many attempts, try again later")
+
         row = connection.execute(USER_LOGIN, (email,)).fetchone()
         if row is None or not verify_password(credentials.password, row[2]):
-            _attempts[email] = (attempts + 1, time.time() + LOCKOUT_SECONDS if attempts + 1 >= MAX_ATTEMPTS else 0.0)
+            record_attempt(connection, email, ip, False)
+            record_event(
+                connection,
+                "login_failure",
+                user_id=row[0] if row else None,
+                email=email,
+                ip=ip,
+                user_agent=agent,
+            )
             raise HTTPException(status_code=401, detail="invalid email or password")
-        token = create_session(connection, row[0])
 
-    _attempts.pop(email, None)
+        record_attempt(connection, email, ip, True)
+        clear_failures(connection, email)
+        token = create_session(connection, row[0], agent)
+        record_event(connection, "login_success", user_id=row[0], email=email, ip=ip, user_agent=agent)
+
     return LoginResponse(
         token=token,
         user=SessionUser(id=row[0], email=row[1], tenant_id=row[3], role=row[4]),
@@ -253,12 +286,72 @@ def login(credentials: Credentials) -> LoginResponse:
 
 
 @app.post("/api/auth/logout")
-def logout(authorization: str | None = Header(default=None)) -> dict:
+def logout(request: Request, authorization: str | None = Header(default=None)) -> dict:
     token = token_from_header(authorization)
     if token:
         with connect_app() as connection:
+            row = user_for_token(connection, token)
             delete_session(connection, token)
+            if row is not None:
+                record_event(
+                    connection,
+                    "logout",
+                    user_id=row[0],
+                    email=row[1],
+                    ip=client_ip(request),
+                    user_agent=request.headers.get("user-agent", ""),
+                )
     return {"status": "signed out"}
+
+
+@app.post("/api/auth/logout-all")
+def logout_all(request: Request, user: SessionUser = Depends(require_user)) -> dict:
+    with connect_app() as connection:
+        removed = revoke_all(connection, user.id)
+        record_event(
+            connection,
+            "logout_all",
+            user_id=user.id,
+            email=user.email,
+            ip=client_ip(request),
+            user_agent=request.headers.get("user-agent", ""),
+        )
+    return {"revoked": removed}
+
+
+@app.get("/api/auth/sessions")
+def sessions(user: SessionUser = Depends(require_user)) -> list[dict]:
+    with connect_app() as connection:
+        rows = list_sessions(connection, user.id)
+    return [
+        {
+            "id": row[0],
+            "created_at": row[1].isoformat(),
+            "expires_at": row[2].isoformat(),
+            "user_agent": row[3],
+        }
+        for row in rows
+    ]
+
+
+@app.delete("/api/auth/sessions/{session_id}")
+def revoke_one(
+    session_id: int,
+    request: Request,
+    user: SessionUser = Depends(require_user),
+) -> dict:
+    with connect_app() as connection:
+        removed = revoke_session(connection, user.id, session_id)
+        if removed:
+            record_event(
+                connection,
+                "session_revoke",
+                user_id=user.id,
+                email=user.email,
+                ip=client_ip(request),
+                user_agent=request.headers.get("user-agent", ""),
+            )
+    return {"revoked": removed}
 
 
 @app.get("/api/auth/me", response_model=SessionUser)
@@ -308,7 +401,7 @@ def documents(tenant_id: int, user: SessionUser = Depends(require_user)) -> list
 async def upload_document(
     tenant_id: int,
     file: UploadFile = File(...),
-    user: SessionUser = Depends(require_user),
+    user: SessionUser = Depends(require_owner),
 ) -> UploadResponse:
     require_tenant(user, tenant_id)
 
@@ -354,7 +447,7 @@ async def upload_document(
 def map_tenant(
     tenant_id: int,
     limit: int = 10,
-    user: SessionUser = Depends(require_user),
+    user: SessionUser = Depends(require_owner),
 ) -> MapResponse:
     require_tenant(user, tenant_id)
 
