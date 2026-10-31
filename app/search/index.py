@@ -3,7 +3,7 @@ import argparse
 from app.db import apply_schema, connect
 from app.search.embed import embed_texts, vector_literal
 
-BATCH = 64
+BATCH = 512
 
 PENDING_REG = """
 SELECT id, text FROM reg_clause WHERE embedding IS NULL ORDER BY id LIMIT %s

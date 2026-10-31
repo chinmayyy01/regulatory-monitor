@@ -12,10 +12,10 @@ def _model() -> TextEmbedding:
     return TextEmbedding(MODEL_NAME)
 
 
-def embed_texts(texts: list[str]) -> list[list[float]]:
+def embed_texts(texts: list[str], batch_size: int = BATCH_SIZE) -> list[list[float]]:
     if not texts:
         return []
-    return [vector.tolist() for vector in _model().embed(texts, batch_size=BATCH_SIZE)]
+    return [vector.tolist() for vector in _model().embed(texts, batch_size=batch_size)]
 
 
 def parse_vector(value) -> list[float]:

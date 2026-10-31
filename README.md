@@ -129,6 +129,12 @@ markdown digest to `data/change/`:
 
 Email is deliberately not wired up — no credentials, and the digest file is the artifact.
 
+## Corpus
+
+As of the last backfill: **1,050 documents / 85,236 clauses** (RBI notifications and directions from
+2023-01 onward, plus SEBI circulars). `clause_in_force` holds 74,533 clauses today and 3,598 as of
+2024-06. Relations: 372 extracted, 173 resolved to a target document.
+
 ## Chat over both corpora (W5)
 
 ```bash

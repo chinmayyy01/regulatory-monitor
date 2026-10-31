@@ -11,7 +11,7 @@ REPEAL_RE = re.compile(r"\b(?:stands?|is|are)\s+(?:hereby\s+)?repealed\b", re.IG
 SUPERSEDE_RE = re.compile(r"shall\s+(?:supersede|stand superseded by)\b", re.IGNORECASE)
 
 SENTENCE_END = re.compile(r"(?<=[.;])\s+")
-MIN_SIMILARITY = 0.6
+MIN_SIMILARITY = 0.70
 STOP_WORDS = {
     "the", "of", "and", "to", "in", "a", "an", "for", "on", "by", "with",
     "reserve", "bank", "india", "sebi", "directions", "direction", "circular",
@@ -31,11 +31,11 @@ def tokens(title: str) -> set[str]:
     return {word for word in cleaned.split() if word not in STOP_WORDS and len(word) > 2}
 
 
-def title_similarity(left: str, right: str) -> float:
-    left_tokens, right_tokens = tokens(left), tokens(right)
-    if not left_tokens or not right_tokens:
+def title_similarity(target_text: str, title: str) -> float:
+    target_tokens, title_tokens = tokens(target_text), tokens(title)
+    if not target_tokens or not title_tokens:
         return 0.0
-    return len(left_tokens & right_tokens) / len(left_tokens | right_tokens)
+    return len(target_tokens & title_tokens) / len(title_tokens)
 
 
 def sentence_around(text: str, match: re.Match) -> str:
@@ -65,7 +65,10 @@ def extract(text: str) -> list[RelationCandidate]:
 
     match = SUPERSEDE_RE.search(text)
     if match:
-        found.append(RelationCandidate("supersedes", None, sentence_around(text, match)))
+        paragraph = sentence_around(text, match)
+        marker = paragraph.lower().find("supersed")
+        target = paragraph[marker:] if marker != -1 else paragraph
+        found.append(RelationCandidate("supersedes", None, target[:400]))
 
     return found
 

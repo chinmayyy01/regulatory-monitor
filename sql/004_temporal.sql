@@ -24,12 +24,23 @@ SELECT
     c.reg_doc_id,
     c.section_no,
     d.date_issued AS valid_from,
-    (
-        SELECT min(r.effective_from)
-        FROM reg_relation r
-        WHERE r.dst_doc_id = d.id
-          AND r.clause_ref = c.section_no
-          AND r.kind IN ('amends', 'repeals')
+    LEAST(
+        (
+            SELECT min(r.effective_from)
+            FROM reg_relation r
+            WHERE r.dst_doc_id = d.id
+              AND r.clause_ref = c.section_no
+              AND r.kind IN ('amends', 'repeals')
+              AND r.effective_from >= d.date_issued
+        ),
+        (
+            SELECT min(r.effective_from)
+            FROM reg_relation r
+            WHERE r.dst_doc_id = d.id
+              AND r.clause_ref IS NULL
+              AND r.kind IN ('repeals', 'supersedes')
+              AND r.effective_from >= d.date_issued
+        )
     ) AS valid_to
 FROM reg_clause c
 JOIN reg_doc d ON d.id = c.reg_doc_id;
