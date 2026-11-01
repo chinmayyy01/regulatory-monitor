@@ -15,8 +15,14 @@ setup: ## create .venv and install pinned dependencies
 test: ## run the offline test suite (no network, no API calls)
 	$(PY) -m pytest
 
-eval: ## run the evaluation harness (intentionally fails until W2)
-	$(PY) scripts/eval.py
+eval: ## measure chat citation/abstention quality (calls the model)
+	$(PY) -m app.eval.chat
+
+eval-build: ## regenerate the chat eval questions from the corpus (calls the model)
+	$(PY) -m app.eval.build
+
+demo: ## seed a demo tenant, documents, login and verdicts
+	$(PY) -m app.demo.seed --reset --map $(if $(MAP),$(MAP),20)
 
 user: ## create a login: make user EMAIL=you@co.dev PASSWORD=... TENANT=myco
 	$(PY) -m app.auth.cli --email "$(EMAIL)" --password "$(PASSWORD)" --tenant "$(TENANT)"
@@ -73,4 +79,4 @@ clean: ## remove caches and the virtualenv
 	rm -rf .venv .pytest_cache
 	find . -name __pycache__ -type d -prune -exec rm -rf {} +
 
-.PHONY: help setup test eval eval-obligations extract user tenant map feed ask api web audit db-init ingest daily schedule unschedule clean
+.PHONY: help setup test eval eval-build eval-obligations extract demo user tenant map feed ask api web audit db-init ingest daily schedule unschedule clean

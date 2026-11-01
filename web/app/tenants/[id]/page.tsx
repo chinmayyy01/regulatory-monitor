@@ -45,12 +45,20 @@ export default async function TenantPage({
             {tenant.documents} documents · {tenant.clauses} clauses
           </p>
         </div>
-        <Link
-          href={`/tenants/${tenantId}/chat`}
-          className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-emerald-950 transition hover:bg-emerald-400"
-        >
-          Ask a question
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/tenants/${tenantId}/changes`}
+            className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-200 transition hover:border-slate-600"
+          >
+            What changed
+          </Link>
+          <Link
+            href={`/tenants/${tenantId}/chat`}
+            className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-emerald-950 transition hover:bg-emerald-400"
+          >
+            Ask a question
+          </Link>
+        </div>
       </div>
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">

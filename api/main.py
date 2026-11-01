@@ -20,6 +20,7 @@ from app.auth.sessions import (
     revoke_session,
     user_for_token,
 )
+from app.change.feed import OBLIGATION_TEXT, RUNS, VERDICTS, diff, verdict_map
 from app.chat.answer import ask as answer_question
 from app.config import MODEL_WORKER
 from app.ingest.pdf import parse_pdf
@@ -75,7 +76,8 @@ GAPS = """
 SELECT m.obligation_id, o.action, o.condition, o.modality,
        m.verdict, m.confidence,
        m.evidence_regulation, m.evidence_policy, m.reason,
-       tc.text AS clause_text, tc.section_no, td.title AS document_title
+       tc.text AS clause_text, tc.section_no, td.title AS document_title,
+       m.policy_span
 FROM mapping m
 JOIN obligation o ON o.id = m.obligation_id
 LEFT JOIN tenant_clause tc ON tc.id = m.tenant_clause_id
@@ -134,6 +136,7 @@ class Gap(BaseModel):
     clause_text: str | None
     section_no: str | None
     document_title: str | None
+    policy_span: dict | None
 
 
 class GapsResponse(BaseModel):
@@ -377,6 +380,50 @@ def tenants(user: SessionUser = Depends(require_user)) -> list[Tenant]:
     ]
 
 
+class Change(BaseModel):
+    obligation_id: int
+    before: str | None
+    after: str | None
+    direction: str
+    action: str
+
+
+class ChangesResponse(BaseModel):
+    from_run: str | None
+    to_run: str | None
+    changes: list[Change]
+
+
+@app.get("/api/tenants/{tenant_id}/changes", response_model=ChangesResponse)
+def changes(tenant_id: int, user: SessionUser = Depends(require_user)) -> ChangesResponse:
+    require_tenant(user, tenant_id)
+    with connect_app(user.tenant_id) as connection:
+        runs = connection.execute(RUNS, (tenant_id, 2)).fetchall()
+        if len(runs) < 2:
+            return ChangesResponse(from_run=None, to_run=None, changes=[])
+        to_run, from_run = runs[0][0], runs[1][0]
+        old = verdict_map(connection.execute(VERDICTS, (tenant_id, from_run)).fetchall())
+        new = verdict_map(connection.execute(VERDICTS, (tenant_id, to_run)).fetchall())
+        found = diff(old, new)
+        ids = [item["obligation_id"] for item in found]
+        actions = dict(connection.execute(OBLIGATION_TEXT, (ids,)).fetchall()) if ids else {}
+
+    return ChangesResponse(
+        from_run=from_run,
+        to_run=to_run,
+        changes=[
+            Change(
+                obligation_id=item["obligation_id"],
+                before=item["before"],
+                after=item["after"],
+                direction=item["direction"],
+                action=actions.get(item["obligation_id"], ""),
+            )
+            for item in found
+        ],
+    )
+
+
 @app.get("/api/tenants/{tenant_id}/documents", response_model=list[Document])
 def documents(tenant_id: int, user: SessionUser = Depends(require_user)) -> list[Document]:
     require_tenant(user, tenant_id)
@@ -509,6 +556,7 @@ def gaps(
                 clause_text=row[9],
                 section_no=row[10],
                 document_title=row[11],
+                policy_span=row[12],
             )
             for row in rows
         ],

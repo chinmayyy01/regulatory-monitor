@@ -9,7 +9,7 @@
 > ```
 > make setup   # create .venv, install pinned deps
 > make test    # offline test suite, no network or API calls
-> make eval    # intentionally fails until W2
+> make eval    # chat eval: citation recall, precision, abstention (calls the model)
 > make audit   # pip-audit on pinned deps
 > ```
 
@@ -186,6 +186,50 @@ never reaches the client and CORS is not part of the design.
 
 **Not there yet:** no login, no row-level security, no upload UI. The tenant switcher is a demo
 affordance. Do not put a real tenant's documents in it until auth and RLS exist.
+
+## Demo
+
+```bash
+make demo          # resets the demo tenant: 4 policies, a login, 20 verdicts
+make api           # :8000
+make web           # :3100
+```
+
+```
+email:    demo@regintel.dev
+password: correct-horse-battery-staple
+```
+
+The seeded tenant is a commercial bank with four policies — priority sector lending, KYC, grievance
+redressal and outsourcing. Against the 20 obligations it is mapped to, the demo lands at roughly
+**15 missing, 1 partial, 4 satisfied**: a realistic mix, not a wall of green.
+
+Obligation extraction is scoped to a subcorpus while this runs on a free token tier, so the gap view
+is a sample, not a full audit. Say that before anyone asks.
+
+## Evaluation
+
+```bash
+make eval-build     # regenerate evals/chat.jsonl from the corpus (calls the model)
+make eval           # run it; results append to data/eval/chat-raw.jsonl and can be resumed
+make eval-obligations
+```
+
+`evals/chat.jsonl` holds 40 questions generated from sampled in-force clauses (the sampled clause is
+the gold citation) plus 8 adversarial unanswerable questions. The runner reports gold-citation recall,
+same-document rate, citation precision, abstention accuracy and latency.
+
+Measured on 11 questions, before and after adding a cross-encoder reranker over a 30-candidate pool:
+
+| | before | after |
+| --- | --- | --- |
+| gold citation recall | 0.273 | 0.364 |
+| same-document rate | 0.545 | 0.818 |
+| citation precision | 0.333 | 0.400 |
+| abstained on answerable | 3 | 1 |
+
+That is a baseline, not a claim. The question set is machine-drafted, several prompts are
+near-duplicates, and exact-clause recall is still low. It is published because hiding it would be worse.
 
 ## Corpus
 

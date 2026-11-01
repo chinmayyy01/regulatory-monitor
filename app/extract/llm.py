@@ -56,13 +56,14 @@ def chat_json(
     user: str,
     model: str = MODEL_WORKER,
     timeout: int = 90,
+    max_completion_tokens: int = MAX_COMPLETION_TOKENS,
 ) -> tuple[dict, dict]:
     payload = {
         "model": model,
         "temperature": 0,
         "response_format": {"type": "json_object"},
         "reasoning_effort": REASONING_EFFORT,
-        "max_completion_tokens": MAX_COMPLETION_TOKENS,
+        "max_completion_tokens": max_completion_tokens,
         "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": user},

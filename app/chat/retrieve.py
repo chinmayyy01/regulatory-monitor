@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from app.search.embed import embed_texts, vector_literal
+from app.search.rerank import rerank
 
 RRF_K = 60
 STOP_WORDS = {
@@ -89,30 +90,39 @@ def _label(kind: str, title: str, section_no: str | None) -> str:
     return f"{kind} · {title[:70]}{section}"
 
 
-def regulation_sources(connection, question: str, embedding: list[float], as_of: date | None, limit: int = 6) -> list[Source]:
+POOL = 30
+
+
+def regulation_sources(connection, question: str, embedding: list[float], as_of: date | None, limit: int = 8) -> list[Source]:
     when = as_of or date.today()
     literal = vector_literal(embedding)
-    dense = connection.execute(DENSE_REGULATION, (when, when, literal, limit * 2)).fetchall()
+    dense = connection.execute(DENSE_REGULATION, (when, when, literal, POOL)).fetchall()
     lexical = connection.execute(
-        LEXICAL_REGULATION, (tsquery_from(question), when, when, tsquery_from(question), limit * 2)
+        LEXICAL_REGULATION, (tsquery_from(question), when, when, tsquery_from(question), POOL)
     ).fetchall()
-    merged = reciprocal_rank_fusion([dense, lexical], limit)
+    merged = reciprocal_rank_fusion([dense, lexical], POOL)
+    if not merged:
+        return []
+    order = rerank(question, [row[1] for row in merged], limit)
     return [
-        Source("regulation", row[0], _label("regulation", row[2], row[3]), row[1])
-        for row in merged
+        Source("regulation", merged[index][0], _label("regulation", merged[index][2], merged[index][3]), merged[index][1])
+        for index in order
     ]
 
 
-def policy_sources(connection, tenant_id: int, question: str, embedding: list[float], limit: int = 6) -> list[Source]:
+def policy_sources(connection, tenant_id: int, question: str, embedding: list[float], limit: int = 4) -> list[Source]:
     literal = vector_literal(embedding)
-    dense = connection.execute(DENSE_POLICY, (tenant_id, literal, limit * 2)).fetchall()
+    dense = connection.execute(DENSE_POLICY, (tenant_id, literal, limit * 4)).fetchall()
     lexical = connection.execute(
-        LEXICAL_POLICY, (tenant_id, tsquery_from(question), tsquery_from(question), limit * 2)
+        LEXICAL_POLICY, (tenant_id, tsquery_from(question), tsquery_from(question), limit * 4)
     ).fetchall()
-    merged = reciprocal_rank_fusion([dense, lexical], limit)
+    merged = reciprocal_rank_fusion([dense, lexical], limit * 4)
+    if not merged:
+        return []
+    order = rerank(question, [row[1] for row in merged], limit)
     return [
-        Source("policy", row[0], _label("policy", row[2], row[3]), row[1])
-        for row in merged
+        Source("policy", merged[index][0], _label("policy", merged[index][2], merged[index][3]), merged[index][1])
+        for index in order
     ]
 
 

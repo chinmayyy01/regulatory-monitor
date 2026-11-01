@@ -49,7 +49,7 @@ class Answer:
 def build_prompt(question: str, sources) -> str:
     blocks = [f"QUESTION:\n{question}", "", "SOURCES:"]
     for index, source in enumerate(sources):
-        blocks.append(f"[{index}] ({source.kind}) {source.label}\n{source.text[:1200]}")
+        blocks.append(f"[{index}] ({source.kind}) {source.label}\n{source.text[:900]}")
     return "\n\n".join(blocks)
 
 
@@ -110,10 +110,19 @@ def parse(payload, sources) -> Answer:
     return Answer(claims, insufficient, rejected)
 
 
-def ask(question: str, sources) -> Answer:
+def ask_with_usage(question: str, sources) -> tuple[Answer, int]:
     if not sources:
-        return Answer([], True, 0)
-    payload, _usage = chat_json(SYSTEM_PROMPT, build_prompt(question, sources), model=MODEL_WORKER)
+        return Answer([], True, 0), 0
+    payload, usage = chat_json(
+        SYSTEM_PROMPT,
+        build_prompt(question, sources),
+        model=MODEL_WORKER,
+        max_completion_tokens=1024,
+    )
     if isinstance(payload, list):
         payload = payload[0] if payload and isinstance(payload[0], dict) else {}
-    return parse(payload, sources)
+    return parse(payload, sources), int(usage.get("total_tokens", 0))
+
+
+def ask(question: str, sources) -> Answer:
+    return ask_with_usage(question, sources)[0]

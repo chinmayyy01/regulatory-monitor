@@ -1,6 +1,31 @@
 import type { Gap } from "@/lib/api";
 import { VerdictBadge } from "./VerdictBadge";
 
+function Excerpt({
+  text,
+  span,
+}: {
+  text: string;
+  span: { start: number; end: number } | null;
+}) {
+  if (!span) {
+    return <>{text.length > 240 ? `${text.slice(0, 240)}…` : text}</>;
+  }
+  const start = Math.max(0, span.start - 90);
+  const end = Math.min(text.length, span.end + 90);
+  return (
+    <>
+      {start > 0 ? "…" : null}
+      {text.slice(start, span.start)}
+      <mark className="rounded bg-emerald-500/20 px-0.5 text-emerald-100">
+        {text.slice(span.start, span.end)}
+      </mark>
+      {text.slice(span.end, end)}
+      {end < text.length ? "…" : null}
+    </>
+  );
+}
+
 export function GapCard({ gap }: { gap: Gap }) {
   return (
     <article className="rounded-xl border border-slate-800 bg-slate-900/40 p-5">
@@ -36,7 +61,9 @@ export function GapCard({ gap }: { gap: Gap }) {
             your policy
           </dt>
           <dd className="mt-1 text-sm leading-6 text-slate-300">
-            {gap.evidence_policy ? (
+            {gap.clause_text && gap.evidence_policy ? (
+              <Excerpt text={gap.clause_text} span={gap.policy_span} />
+            ) : gap.evidence_policy ? (
               `“${gap.evidence_policy}”`
             ) : (
               <span className="text-rose-300/80">no matching clause found</span>

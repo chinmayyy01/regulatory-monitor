@@ -27,6 +27,7 @@ export type Gap = {
   clause_text: string | null;
   section_no: string | null;
   document_title: string | null;
+  policy_span: { start: number; end: number } | null;
 };
 
 export type GapsResponse = {
@@ -84,6 +85,24 @@ export async function listTenants(token: string): Promise<Tenant[]> {
 
 export async function getGaps(tenantId: number, token: string): Promise<GapsResponse> {
   return get<GapsResponse>(`/api/tenants/${tenantId}/gaps`, token);
+}
+
+export type Change = {
+  obligation_id: number;
+  before: string | null;
+  after: string | null;
+  direction: "new" | "worsened" | "improved" | "dropped";
+  action: string;
+};
+
+export type ChangesResponse = {
+  from_run: string | null;
+  to_run: string | null;
+  changes: Change[];
+};
+
+export async function listChanges(tenantId: number, token: string): Promise<ChangesResponse> {
+  return get<ChangesResponse>(`/api/tenants/${tenantId}/changes`, token);
 }
 
 export type DocumentRow = {

@@ -122,7 +122,12 @@ def judge(
 ) -> tuple[Judgment | None, int]:
     if not candidates:
         return Judgment(-1, "missing", 1.0, "", "", "no policy clauses available"), 0
-    payload, usage = chat_json(SYSTEM_PROMPT, build_prompt(obligation_text, candidates), model=model)
+    payload, usage = chat_json(
+        SYSTEM_PROMPT,
+        build_prompt(obligation_text, candidates),
+        model=model,
+        max_completion_tokens=1024,
+    )
     if isinstance(payload, list):
         payload = payload[0] if payload and isinstance(payload[0], dict) else {}
     return validate(payload, obligation_text, candidates), int(usage.get("total_tokens", 0))
