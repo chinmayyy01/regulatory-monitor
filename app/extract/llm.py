@@ -4,7 +4,7 @@ import time
 import urllib.error
 import urllib.request
 
-from app.config import GROQ_API_BASE, MODEL_WORKER, groq_api_key
+from app.config import MODEL_WORKER, api_base, api_key, provider
 
 USER_AGENT = "RegIntelAI/0.1 (+https://github.com/chinmayyy01/regulatory-monitor)"
 RETRY_DELAYS = (0, 5, 15, 30, 60)
@@ -39,10 +39,10 @@ def _loads(content: str):
 
 def _post(payload: dict, timeout: int) -> dict:
     request = urllib.request.Request(
-        f"{GROQ_API_BASE}/chat/completions",
+        f"{api_base()}/chat/completions",
         data=json.dumps(payload).encode("utf-8"),
         headers={
-            "Authorization": f"Bearer {groq_api_key()}",
+            "Authorization": f"Bearer {api_key()}",
             "Content-Type": "application/json",
             "User-Agent": USER_AGENT,
         },
@@ -62,13 +62,17 @@ def chat_json(
         "model": model,
         "temperature": 0,
         "response_format": {"type": "json_object"},
-        "reasoning_effort": REASONING_EFFORT,
-        "max_completion_tokens": max_completion_tokens,
         "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": user},
         ],
     }
+    if provider() == "groq":
+        payload["reasoning_effort"] = REASONING_EFFORT
+        payload["max_completion_tokens"] = max_completion_tokens
+    else:
+        payload["max_tokens"] = max_completion_tokens
+
     last_error: Exception | None = None
     json_mode = True
     for delay in RETRY_DELAYS:

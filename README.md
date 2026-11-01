@@ -190,6 +190,18 @@ affordance. Do not put a real tenant's documents in it until auth and RLS exist.
 ## Demo
 
 ```bash
+make demo          # reset and seed: 4 policies, login, 20 verdicts
+make demo-change   # withdraw the PSL policy, remap, print the verdict diff
+make api
+make web
+```
+
+`make demo-change` is the "what changed" beat: four obligations flip from `satisfied` to `missing` and
+the change feed reports them as `worsened`. Run `make demo` afterwards to restore the good state.
+
+## Demo (details)
+
+```bash
 make demo          # resets the demo tenant: 4 policies, a login, 20 verdicts
 make api           # :8000
 make web           # :3100
@@ -207,6 +219,13 @@ redressal and outsourcing. Against the 20 obligations it is mapped to, the demo 
 Obligation extraction is scoped to a subcorpus while this runs on a free token tier, so the gap view
 is a sample, not a full audit. Say that before anyone asks.
 
+## Running on Groq or OpenAI
+
+By default the pipeline uses Groq (`GROQ_API_KEY`). Set `OPENAI_API_KEY` and every model call routes to
+OpenAI instead — `gpt-4.1-mini` for extraction/chat, `gpt-4.1` for the mapping judge. Nothing else
+changes: same prompts, same validation, same verification. The free Groq tier caps at 200k tokens per
+day, which is why the demo corpus is scoped; OpenAI has no such cap.
+
 ## Evaluation
 
 ```bash
@@ -219,17 +238,25 @@ make eval-obligations
 the gold citation) plus 8 adversarial unanswerable questions. The runner reports gold-citation recall,
 same-document rate, citation precision, abstention accuracy and latency.
 
-Measured on 11 questions, before and after adding a cross-encoder reranker over a 30-candidate pool:
+Full run, 48 questions (40 answerable, 8 unanswerable):
 
-| | before | after |
-| --- | --- | --- |
-| gold citation recall | 0.273 | 0.364 |
-| same-document rate | 0.545 | 0.818 |
-| citation precision | 0.333 | 0.400 |
-| abstained on answerable | 3 | 1 |
+| metric | value |
+| --- | --- |
+| gold citation recall | 0.45 |
+| same-document rate | 0.925 |
+| citation precision | 0.419 |
+| abstention accuracy (8 unanswerable) | **1.00** |
+| claims rejected by verification | 3 |
+| latency p50 / p95 | 3.1s / 4.2s |
 
-That is a baseline, not a claim. The question set is machine-drafted, several prompts are
-near-duplicates, and exact-clause recall is still low. It is published because hiding it would be worse.
+Interpretation, honestly: retrieval almost always finds the right *document* (0.93) but lands on the
+exact clause 45% of the time — that is a ranking ceiling, not a coverage one. Abstention is perfect on
+this set: the eight questions the corpus cannot answer were all refused.
+
+Caveats: the question set is machine-drafted, several prompts still ask about the document rather than
+the obligation, and exact-clause recall is sensitive to how the parser split clauses. The comparison
+against earlier runs mixes three changes (reranker, model, regenerated questions), so it is not a
+clean ablation. Published because hiding it would be worse.
 
 ## Corpus
 

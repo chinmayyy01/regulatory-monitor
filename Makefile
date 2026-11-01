@@ -24,6 +24,9 @@ eval-build: ## regenerate the chat eval questions from the corpus (calls the mod
 demo: ## seed a demo tenant, documents, login and verdicts
 	$(PY) -m app.demo.seed --reset --map $(if $(MAP),$(MAP),20)
 
+demo-change: ## simulate withdrawing a policy and show the verdict diff
+	$(PY) -m app.demo.change
+
 user: ## create a login: make user EMAIL=you@co.dev PASSWORD=... TENANT=myco
 	$(PY) -m app.auth.cli --email "$(EMAIL)" --password "$(PASSWORD)" --tenant "$(TENANT)"
 
@@ -79,4 +82,4 @@ clean: ## remove caches and the virtualenv
 	rm -rf .venv .pytest_cache
 	find . -name __pycache__ -type d -prune -exec rm -rf {} +
 
-.PHONY: help setup test eval eval-build eval-obligations extract demo user tenant map feed ask api web audit db-init ingest daily schedule unschedule clean
+.PHONY: help setup test eval eval-build eval-obligations extract demo demo-change user tenant map feed ask api web audit db-init ingest daily schedule unschedule clean
