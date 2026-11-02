@@ -12,3 +12,56 @@ body {
 ::selection {
   background: #164e63;
 }
+
+/* Landing page visual system (scoped) */
+.landing {
+  --curve: cubic-bezier(0.22, 1, 0.36, 1);
+  background: #000000;
+  color: #ffffff;
+}
+
+.landing .heading-1 { font-size: 3.75rem; line-height: 1; font-weight: 600; letter-spacing: -0.03em; }
+.landing .heading-2 { font-size: 3rem; line-height: 1; font-weight: 600; letter-spacing: -0.02em; }
+.landing .heading-3 { font-size: 2.25rem; line-height: 2.5rem; font-weight: 600; letter-spacing: -0.02em; }
+.landing .heading-4 { font-size: 1.875rem; line-height: 2.25rem; font-weight: 600; letter-spacing: -0.01em; }
+.landing .heading-5 { font-size: 1.5rem; line-height: 2rem; font-weight: 600; }
+.landing .title-1 { font-size: 1.25rem; line-height: 1.75rem; font-weight: 500; }
+.landing .title-2 { font-size: 1.125rem; line-height: 1.75rem; font-weight: 500; }
+.landing .title-3 { font-size: 1rem; line-height: 1.5rem; font-weight: 500; }
+.landing .title-4 { font-size: 0.875rem; line-height: 1.25rem; font-weight: 500; }
+.landing .body-2 { font-size: 1rem; line-height: 1.5rem; font-weight: 500; }
+.landing .body-3 { font-size: 1rem; line-height: 1.5rem; font-weight: 400; }
+.landing .body-5 { font-size: 0.875rem; line-height: 1.25rem; font-weight: 500; }
+.landing .body-6 { font-size: 0.875rem; line-height: 1.25rem; font-weight: 400; }
+.landing .button-md { font-size: 1rem; line-height: 1.5rem; font-weight: 600; }
+.landing .caption-1 { font-size: 0.875rem; line-height: 1.25rem; font-weight: 500; }
+.landing .caption-2 { font-size: 0.875rem; line-height: 1.25rem; font-weight: 400; }
+.landing .caption-3 { font-size: 0.75rem; line-height: 1rem; font-weight: 600; }
+.landing .caption-4 { font-size: 0.75rem; line-height: 1rem; font-weight: 500; }
+
+.landing .balance { text-wrap: balance; }
+.landing .pretty { text-wrap: pretty; }
+
+.landing .reveal {
+  opacity: 0;
+  transform: translateY(32px);
+  transition: opacity 700ms var(--curve), transform 700ms var(--curve);
+}
+.landing .reveal.on { opacity: 1; transform: none; }
+
+.landing .tagline-word {
+  color: rgba(255, 255, 255, 0.3);
+  transition: color 700ms var(--curve);
+}
+.landing .tagline-word.on { color: #ffffff; }
+
+@media (max-width: 639px) {
+  .landing .heading-1 { font-size: 3rem; line-height: 1; }
+  .landing .heading-2 { font-size: 2.25rem; line-height: 2.5rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing .reveal { opacity: 1; transform: none; transition: none; }
+  .landing .tagline-word { color: #ffffff; transition: none; }
+  .landing * { transition-duration: 1ms !important; animation-duration: 1ms !important; }
+}

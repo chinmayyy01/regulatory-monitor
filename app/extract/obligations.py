@@ -48,6 +48,8 @@ NON_OBLIGATION_ACTION_RE = re.compile(
     re.IGNORECASE,
 )
 MAX_ACTION_CHARS = 400
+MIN_ACTION_CHARS = 15
+FRAGMENT_RE = re.compile(r"^be\s", re.IGNORECASE)
 MAX_TEXT_CHARS = 6000
 
 RULES = """Rules:
@@ -161,7 +163,9 @@ def validate(payload, text: str, source_date: date | None = None) -> list[Obliga
         if modality not in MODALITIES or not action:
             continue
         key = action.lower()
-        if len(action) < 12:
+        if len(action) < MIN_ACTION_CHARS:
+            continue
+        if FRAGMENT_RE.match(action):
             continue
         if NON_OBLIGATION_ACTION_RE.search(action):
             continue

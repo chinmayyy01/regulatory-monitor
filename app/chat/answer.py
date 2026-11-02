@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+from app.chat.entail import supported
 from app.config import MODEL_WORKER
 from app.extract.llm import chat_json
 from app.search.span import find_span
@@ -44,6 +45,7 @@ class Answer:
     claims: list[Claim]
     insufficient: bool
     rejected: int
+    unsupported: int = 0
 
 
 def build_prompt(question: str, sources) -> str:
@@ -121,7 +123,26 @@ def ask_with_usage(question: str, sources) -> tuple[Answer, int]:
     )
     if isinstance(payload, list):
         payload = payload[0] if payload and isinstance(payload[0], dict) else {}
-    return parse(payload, sources), int(usage.get("total_tokens", 0))
+    answer = parse(payload, sources)
+
+    tokens = int(usage.get("total_tokens", 0))
+    kept: list[Claim] = []
+    unsupported = 0
+    for claim in answer.claims:
+        ok = False
+        for citation in claim.citations:
+            passes, used = supported(claim.text, citation.quote)
+            tokens += used
+            ok = ok or passes
+        if ok:
+            kept.append(claim)
+        else:
+            unsupported += 1
+
+    return (
+        Answer(kept, answer.insufficient or not kept, answer.rejected, unsupported),
+        tokens,
+    )
 
 
 def ask(question: str, sources) -> Answer:

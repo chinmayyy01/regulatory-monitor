@@ -90,8 +90,9 @@ export function Chat({ tenantId }: { tenantId: number }) {
             Not enough evidence in the indexed documents.
           </p>
           <p className="mt-1 text-xs text-amber-200/70">
-            {answer.rejected} claim(s) were dropped because their quotes could not
-            be found in the cited source.
+            {answer.rejected} claim(s) dropped for unverifiable quotes,{" "}
+            {answer.unsupported} claim(s) dropped because the quote did not support
+            them.
           </p>
         </div>
       ) : null}

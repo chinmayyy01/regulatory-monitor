@@ -84,11 +84,12 @@ LEFT JOIN tenant_clause tc ON tc.id = m.tenant_clause_id
 LEFT JOIN tenant_doc td ON td.id = tc.tenant_doc_id
 WHERE m.tenant_id = %s AND m.run_id = %s
 ORDER BY CASE m.verdict
-             WHEN 'missing' THEN 0
-             WHEN 'stale' THEN 1
-             WHEN 'partial' THEN 2
+             WHEN 'satisfied' THEN 0
+             WHEN 'partial' THEN 1
+             WHEN 'stale' THEN 2
              ELSE 3
          END,
+         m.confidence DESC,
          m.id
 LIMIT %s
 """
@@ -168,6 +169,7 @@ class AskResponse(BaseModel):
     question: str
     insufficient: bool
     rejected: int
+    unsupported: int
     claims: list[Claim]
 
 
@@ -579,6 +581,7 @@ def ask(
         question=request.question,
         insufficient=answer.insufficient,
         rejected=answer.rejected,
+        unsupported=answer.unsupported,
         claims=[
             Claim(
                 text=claim.text,

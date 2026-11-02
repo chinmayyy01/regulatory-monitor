@@ -175,9 +175,11 @@ make api                     # FastAPI on :8000, reads Postgres + pgvector
 make web                     # Next.js + Tailwind on :3100
 ```
 
-- `/` — tenants and their document counts.
+- `/` — the marketing page (Manrope, floating nav, tagline reveal).
+- `/app` — tenants and their document counts.
 - `/tenants/[id]` — verdict summary and the gap list, each with the regulation quote and the
   matching (or missing) policy quote.
+- `/tenants/[id]/changes` — verdict diff between the last two mapping runs.
 - `/tenants/[id]/chat` — ask a question, get claims with citations, or an explicit
   "not enough evidence".
 
@@ -219,6 +221,27 @@ redressal and outsourcing. Against the 20 obligations it is mapped to, the demo 
 Obligation extraction is scoped to a subcorpus while this runs on a free token tier, so the gap view
 is a sample, not a full audit. Say that before anyone asks.
 
+## Obligation extraction cost
+
+Extraction is the expensive step. `--model` and `--budget-usd` bound it:
+
+```bash
+.venv/bin/python -m app.extract.run --limit 3000 --batch 5 --model gpt-4o-mini --budget-usd 0.5
+```
+
+`gpt-4o-mini` scores 0.917 precision / 0.846 recall on the 24-clause gold set, against 0.923 / 0.923
+for `gpt-4.1-mini`, at roughly a quarter of the price. The loop tracks prompt and completion tokens,
+prices them per model in `app/config.py`, and stops when the dollar budget is reached.
+
+Runs are resumable: `clause_extraction` records every clause the model has seen, so a restarted run
+skips both clauses that produced obligations and clauses that legitimately produced none. `--workers`
+runs batches in parallel; six workers took throughput from ~8 clauses/second worth of latency-bound
+waiting down to a ~20-minute pass over 12,000 clauses.
+
+Measured across the whole corpus: **37,500 clauses → 19,804 obligations for $1.44** (~$0.00006 per
+clause). An audit of 20 random obligations from the long tail found 18 acceptable, 2 fragmentary
+(missing object), i.e. ~0.90 precision — lower than the gold set, as expected.
+
 ## Running on Groq or OpenAI
 
 By default the pipeline uses Groq (`GROQ_API_KEY`). Set `OPENAI_API_KEY` and every model call routes to
@@ -238,20 +261,22 @@ make eval-obligations
 the gold citation) plus 8 adversarial unanswerable questions. The runner reports gold-citation recall,
 same-document rate, citation precision, abstention accuracy and latency.
 
-Full run, 48 questions (40 answerable, 8 unanswerable):
+Full run, 48 questions (40 answerable, 8 unanswerable), with entailment checking enabled:
 
 | metric | value |
 | --- | --- |
-| gold citation recall | 0.45 |
-| same-document rate | 0.925 |
-| citation precision | 0.419 |
+| gold citation recall | 0.375 |
+| same-document rate | 0.80 |
+| citation precision | 0.405 |
 | abstention accuracy (8 unanswerable) | **1.00** |
-| claims rejected by verification | 3 |
-| latency p50 / p95 | 3.1s / 4.2s |
+| claims dropped for unverifiable quotes | 2 |
+| claims dropped because the quote did not support them | 5 |
+| latency p50 / p95 | 4.2s / 6.3s |
 
-Interpretation, honestly: retrieval almost always finds the right *document* (0.93) but lands on the
-exact clause 45% of the time — that is a ranking ceiling, not a coverage one. Abstention is perfect on
-this set: the eight questions the corpus cannot answer were all refused.
+Interpretation, honestly: recall and same-document rate fell when entailment was enabled (0.45 → 0.375,
+0.925 → 0.80) because five claims that previously survived quote verification were dropped for not
+being supported by their quote. That is the trade you want: a lower score for answers you can defend.
+Abstention is perfect on this set: all eight unanswerable questions were refused.
 
 Caveats: the question set is machine-drafted, several prompts still ask about the document rather than
 the obligation, and exact-clause recall is sensitive to how the parser split clauses. The comparison

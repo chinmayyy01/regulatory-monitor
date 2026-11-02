@@ -27,6 +27,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Measure obligation extraction on the gold set")
     parser.add_argument("--sleep", type=float, default=1.0)
     parser.add_argument("--batch", type=int, default=5)
+    parser.add_argument("--model", default=MODEL_WORKER)
     args = parser.parse_args()
 
     rows = load_rows()
@@ -38,7 +39,9 @@ def main() -> None:
         chunk = rows[start : start + args.batch]
         entries = [(index, row["text"]) for index, row in enumerate(chunk)]
         try:
-            payload, _ = chat_json(BATCH_SYSTEM_PROMPT, build_batch_prompt(entries))
+            payload, _ = chat_json(
+                BATCH_SYSTEM_PROMPT, build_batch_prompt(entries), model=args.model
+            )
             results = batch_results(payload, len(chunk))
         except LlmError as error:
             failures += len(chunk)
@@ -70,7 +73,7 @@ def main() -> None:
     modality_accuracy = modality_hits / tp if tp else 0.0
 
     print()
-    print(f"model: {MODEL_WORKER}")
+    print(f"model: {args.model}")
     print(f"rows: {len(rows)}  failures: {failures}")
     print(f"tp={tp} fp={fp} fn={fn} tn={tn}")
     print(f"precision {precision:.3f}  recall {recall:.3f}  f1 {f1:.3f}")

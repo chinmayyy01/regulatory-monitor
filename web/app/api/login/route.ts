@@ -31,11 +31,15 @@ export async function POST(request: Request) {
     return NextResponse.json(data, { status: response.status });
   }
 
+  const forwarded = request.headers.get("x-forwarded-proto");
+  const protocol = forwarded ?? new URL(request.url).protocol.replace(":", "");
+  const isHttps = protocol === "https";
+
   const result = NextResponse.json({ user: data.user });
   result.cookies.set(SESSION_COOKIE, data.token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: isHttps,
     path: "/",
     maxAge: 60 * 60 * 24 * 7,
   });

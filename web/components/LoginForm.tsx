@@ -25,7 +25,7 @@ export function LoginForm() {
         setError(data?.detail ?? "sign in failed");
         return;
       }
-      router.replace("/");
+      router.replace("/app");
       router.refresh();
     } catch {
       setError("sign in failed");

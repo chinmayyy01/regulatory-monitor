@@ -51,6 +51,7 @@ export type AskResponse = {
   question: string;
   insufficient: boolean;
   rejected: number;
+  unsupported: number;
   claims: Claim[];
 };
 
@@ -71,6 +72,28 @@ async function get<T>(path: string, token: string): Promise<T> {
     throw new Error(`API ${response.status} on ${path}`);
   }
   return response.json() as Promise<T>;
+}
+
+export type SessionUser = {
+  id: number;
+  email: string;
+  tenant_id: number;
+  role: string;
+};
+
+export async function currentUser(token: string): Promise<SessionUser | null> {
+  try {
+    const response = await fetch(`${API_URL}/api/auth/me`, {
+      cache: "no-store",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) {
+      return null;
+    }
+    return (await response.json()) as SessionUser;
+  } catch {
+    return null;
+  }
 }
 
 export async function requireToken(): Promise<string> {

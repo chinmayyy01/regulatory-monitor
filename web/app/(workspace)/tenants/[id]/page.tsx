@@ -7,14 +7,20 @@ import { getGaps, listDocuments, listTenants, requireToken } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
-const ORDER = ["missing", "stale", "partial", "satisfied"];
+const ORDER = ["satisfied", "partial", "stale", "missing"];
 
 export default async function TenantPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ verdict?: string }>;
 }) {
   const { id } = await params;
+  const { verdict } = await searchParams;
+  const active = ["satisfied", "partial", "stale", "missing"].includes(verdict ?? "")
+    ? (verdict as string)
+    : null;
   const tenantId = Number(id);
   if (!Number.isFinite(tenantId)) notFound();
 
@@ -28,12 +34,13 @@ export default async function TenantPage({
     listDocuments(tenantId, token),
   ]);
   const total = Object.values(summary).reduce((sum, value) => sum + value, 0);
+  const visible = active ? gaps.filter((gap) => gap.verdict === active) : gaps;
 
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <Link href="/" className="text-xs text-slate-500 hover:text-slate-300">
+          <Link href="/app" className="text-xs text-slate-500 hover:text-slate-300">
             ← all tenants
           </Link>
           <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-100">
@@ -62,18 +69,21 @@ export default async function TenantPage({
       </div>
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {ORDER.map((verdict) => (
-          <div
-            key={verdict}
-            className="rounded-xl border border-slate-800 bg-slate-900/40 p-4"
+        {ORDER.map((name) => (
+          <Link
+            key={name}
+            href={`/tenants/${tenantId}${active === name ? "" : `?verdict=${name}`}`}
+            className={`rounded-xl border p-4 transition ${
+              active === name
+                ? "border-emerald-500/50 bg-emerald-500/10"
+                : "border-slate-800 bg-slate-900/40 hover:border-slate-700"
+            }`}
           >
-            <p className="text-xs uppercase tracking-wide text-slate-500">
-              {verdict}
-            </p>
+            <p className="text-xs uppercase tracking-wide text-slate-500">{name}</p>
             <p className="mt-1 text-2xl font-semibold text-slate-100">
-              {summary[verdict] ?? 0}
+              {summary[name] ?? 0}
             </p>
-          </div>
+          </Link>
         ))}
       </section>
 
@@ -129,11 +139,22 @@ export default async function TenantPage({
             No verdicts yet. Use “Re-check” after adding a document.
           </p>
         ) : (
-          <div className="space-y-3">
-            {gaps.map((gap) => (
-              <GapCard key={gap.obligation_id} gap={gap} />
-            ))}
-          </div>
+          <>
+            {active ? (
+              <p className="text-xs text-slate-500">
+                Showing {visible.length} {active} obligation
+                {visible.length === 1 ? "" : "s"} ·{" "}
+                <Link href={`/tenants/${tenantId}`} className="underline hover:text-slate-300">
+                  clear filter
+                </Link>
+              </p>
+            ) : null}
+            <div className="space-y-3">
+              {visible.map((gap) => (
+                <GapCard key={gap.obligation_id} gap={gap} />
+              ))}
+            </div>
+          </>
         )}
       </section>
     </div>
