@@ -56,25 +56,40 @@ body {
 .landing .tagline-word.on { color: #ffffff; }
 
 @keyframes topo-a {
-  0%   { transform: translate3d(0, 0, 0) rotate(0deg); }
-  50%  { transform: translate3d(-22px, 12px, 0) rotate(0.5deg); }
-  100% { transform: translate3d(-44px, 0, 0) rotate(0deg); }
+  0%    { transform: translate3d(0, 0, 0) rotate(0deg); }
+  12.5% { transform: translate3d(-9px, 5px, 0) rotate(0.12deg); }
+  25%   { transform: translate3d(-22px, 9px, 0) rotate(0.2deg); }
+  37.5% { transform: translate3d(-36px, 5px, 0) rotate(0.12deg); }
+  50%   { transform: translate3d(-44px, 0, 0) rotate(0deg); }
+  62.5% { transform: translate3d(-36px, -5px, 0) rotate(-0.12deg); }
+  75%   { transform: translate3d(-22px, -9px, 0) rotate(-0.2deg); }
+  87.5% { transform: translate3d(-9px, -5px, 0) rotate(-0.12deg); }
+  100%  { transform: translate3d(0, 0, 0) rotate(0deg); }
 }
 
 @keyframes topo-b {
-  0%   { transform: translate3d(0, 0, 0) rotate(0deg); }
-  50%  { transform: translate3d(26px, -14px, 0) rotate(-0.45deg); }
-  100% { transform: translate3d(52px, 0, 0) rotate(0deg); }
+  0%    { transform: translate3d(0, 0, 0) rotate(0deg); }
+  12.5% { transform: translate3d(10px, -6px, 0) rotate(-0.1deg); }
+  25%   { transform: translate3d(26px, -11px, 0) rotate(-0.18deg); }
+  37.5% { transform: translate3d(42px, -6px, 0) rotate(-0.1deg); }
+  50%   { transform: translate3d(52px, 0, 0) rotate(0deg); }
+  62.5% { transform: translate3d(42px, 6px, 0) rotate(0.1deg); }
+  75%   { transform: translate3d(26px, 11px, 0) rotate(0.18deg); }
+  87.5% { transform: translate3d(10px, 6px, 0) rotate(0.1deg); }
+  100%  { transform: translate3d(0, 0, 0) rotate(0deg); }
 }
 
 .landing .topo-a {
   transform-origin: center;
-  animation: topo-a 38s var(--curve) infinite alternate;
+  will-change: transform;
+  animation: topo-a 44s linear infinite;
 }
 
 .landing .topo-b {
   transform-origin: center;
-  animation: topo-b 48s var(--curve) infinite alternate;
+  will-change: transform;
+  animation: topo-b 58s linear infinite;
+  animation-delay: -13s;
 }
 
 @media (max-width: 639px) {
