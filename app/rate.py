@@ -1,7 +1,7 @@
 import time
 from collections import deque
 
-DEFAULT_TPM = 8000
+from app.config import TPM_LIMIT as DEFAULT_TPM
 
 
 class TokenPacer:

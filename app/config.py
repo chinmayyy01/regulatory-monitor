@@ -43,6 +43,8 @@ PRICES_PER_MTOKEN = {
     "openai/gpt-oss-120b": (0.0, 0.0),
 }
 
+TPM_LIMIT = 8_000 if provider() == "groq" else 200_000
+
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 MAX_EXTRACTED_CHARS = 200_000
 

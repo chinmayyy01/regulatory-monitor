@@ -1,5 +1,6 @@
 import hashlib
 import os
+from pathlib import Path
 import time
 from types import SimpleNamespace
 from contextlib import asynccontextmanager
@@ -7,6 +8,7 @@ from datetime import date
 from typing import Literal
 
 from fastapi import Depends, FastAPI, File, Header, HTTPException, Request, UploadFile, status
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, Field
 
@@ -77,7 +79,7 @@ SELECT m.obligation_id, o.action, o.condition, o.modality,
        m.verdict, m.confidence,
        m.evidence_regulation, m.evidence_policy, m.reason,
        tc.text AS clause_text, tc.section_no, td.title AS document_title,
-       m.policy_span
+       m.policy_span, tc.page, td.id
 FROM mapping m
 JOIN obligation o ON o.id = m.obligation_id
 LEFT JOIN tenant_clause tc ON tc.id = m.tenant_clause_id
@@ -138,6 +140,8 @@ class Gap(BaseModel):
     section_no: str | None
     document_title: str | None
     policy_span: dict | None
+    page: int | None
+    document_id: int | None
 
 
 class GapsResponse(BaseModel):
@@ -171,6 +175,18 @@ class AskResponse(BaseModel):
     rejected: int
     unsupported: int
     claims: list[Claim]
+
+
+class NewTenant(BaseModel):
+    name: str = Field(min_length=2, max_length=80)
+    entity_type: str = Field(min_length=2, max_length=40)
+    products: list[str] = Field(default_factory=list)
+
+
+class Membership(BaseModel):
+    tenant_id: int
+    name: str
+    role: str
 
 
 class Document(BaseModel):
@@ -241,6 +257,13 @@ def require_owner(user: SessionUser = Depends(require_user)) -> SessionUser:
 def require_tenant(user: SessionUser, tenant_id: int) -> None:
     if user.tenant_id != tenant_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="not your tenant")
+    with connect_app(user.tenant_id) as connection:
+        row = connection.execute(
+            "SELECT 1 FROM membership WHERE user_id = %s AND tenant_id = %s",
+            (user.id, tenant_id),
+        ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="no access to tenant")
 
 
 @app.get("/api/health")
@@ -426,6 +449,94 @@ def changes(tenant_id: int, user: SessionUser = Depends(require_user)) -> Change
     )
 
 
+@app.get("/api/auth/tenants", response_model=list[Membership])
+def my_tenants(user: SessionUser = Depends(require_user)) -> list[Membership]:
+    with connect_app(user.tenant_id) as connection:
+        rows = connection.execute(
+            """
+            SELECT t.id, t.name, m.role
+            FROM membership m JOIN tenant t ON t.id = m.tenant_id
+            WHERE m.user_id = %s
+            ORDER BY t.name
+            """,
+            (user.id,),
+        ).fetchall()
+    return [Membership(tenant_id=row[0], name=row[1], role=row[2]) for row in rows]
+
+
+@app.post("/api/auth/switch/{tenant_id}")
+def switch_tenant(tenant_id: int, user: SessionUser = Depends(require_user)) -> dict:
+    with connect_app(user.tenant_id) as connection:
+        allowed = connection.execute(
+            "SELECT 1 FROM membership WHERE user_id = %s AND tenant_id = %s",
+            (user.id, tenant_id),
+        ).fetchone()
+        if allowed is None:
+            raise HTTPException(status_code=403, detail="no access to tenant")
+        connection.execute(
+            "UPDATE app_user SET tenant_id = %s WHERE id = %s", (tenant_id, user.id)
+        )
+        connection.commit()
+    return {"tenant_id": tenant_id}
+
+
+@app.post("/api/tenants", response_model=Tenant, status_code=201)
+def create_tenant(payload: NewTenant, user: SessionUser = Depends(require_owner)) -> Tenant:
+    with connect_app(user.tenant_id) as connection:
+        row = connection.execute(
+            """
+            INSERT INTO tenant (name, entity_type, products)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (name) DO NOTHING
+            RETURNING id
+            """,
+            (payload.name.strip(), payload.entity_type, payload.products),
+        ).fetchone()
+        if row is None:
+            raise HTTPException(status_code=409, detail="a workspace with that name exists")
+        tenant_id = row[0]
+        connection.execute(
+            "INSERT INTO membership (user_id, tenant_id, role) VALUES (%s, %s, 'owner') "
+            "ON CONFLICT DO NOTHING",
+            (user.id, tenant_id),
+        )
+        connection.execute(
+            "UPDATE app_user SET tenant_id = %s WHERE id = %s", (tenant_id, user.id)
+        )
+        connection.commit()
+
+    return Tenant(
+        id=tenant_id,
+        name=payload.name.strip(),
+        entity_type=payload.entity_type,
+        license_type=None,
+        products=payload.products,
+        documents=0,
+        clauses=0,
+    )
+
+
+@app.get("/api/tenants/{tenant_id}/documents/{document_id}/pdf")
+def document_pdf(
+    tenant_id: int,
+    document_id: int,
+    user: SessionUser = Depends(require_user),
+):
+    require_tenant(user, tenant_id)
+    with connect_app(user.tenant_id) as connection:
+        row = connection.execute(
+            "SELECT sha256 FROM tenant_doc WHERE id = %s AND tenant_id = %s",
+            (document_id, tenant_id),
+        ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="document not found")
+
+    path = Path("data/tenant_pdfs") / f"{row[0]}.pdf"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="the original file is not stored")
+    return FileResponse(path, media_type="application/pdf", filename=f"{document_id}.pdf")
+
+
 @app.get("/api/tenants/{tenant_id}/documents", response_model=list[Document])
 def documents(tenant_id: int, user: SessionUser = Depends(require_user)) -> list[Document]:
     require_tenant(user, tenant_id)
@@ -481,6 +592,7 @@ async def upload_document(
             segment(lines),
             digest,
             pages,
+            payload,
         )
         if document_id is None:
             raise HTTPException(status_code=409, detail="this document is already uploaded")
@@ -559,6 +671,8 @@ def gaps(
                 section_no=row[10],
                 document_title=row[11],
                 policy_span=row[12],
+                page=row[13],
+                document_id=row[14],
             )
             for row in rows
         ],

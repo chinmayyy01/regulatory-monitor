@@ -8,16 +8,17 @@ import { getGaps, listDocuments, listTenants, requireToken } from "@/lib/api";
 export const dynamic = "force-dynamic";
 
 const ORDER = ["satisfied", "partial", "stale", "missing"];
+const PAGE_SIZE = 15;
 
 export default async function TenantPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ verdict?: string }>;
+  searchParams: Promise<{ verdict?: string; page?: string }>;
 }) {
   const { id } = await params;
-  const { verdict } = await searchParams;
+  const { verdict, page: pageParam } = await searchParams;
   const active = ["satisfied", "partial", "stale", "missing"].includes(verdict ?? "")
     ? (verdict as string)
     : null;
@@ -35,6 +36,19 @@ export default async function TenantPage({
   ]);
   const total = Object.values(summary).reduce((sum, value) => sum + value, 0);
   const visible = active ? gaps.filter((gap) => gap.verdict === active) : gaps;
+  const totalPages = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
+  const requested = Number(pageParam ?? "1");
+  const current = Number.isFinite(requested)
+    ? Math.min(Math.max(Math.floor(requested), 1), totalPages)
+    : 1;
+  const pageItems = visible.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
+  const query = (nextPage: number) => {
+    const params = new URLSearchParams();
+    if (active) params.set("verdict", active);
+    if (nextPage > 1) params.set("page", String(nextPage));
+    const suffix = params.toString();
+    return `/tenants/${tenantId}${suffix ? `?${suffix}` : ""}`;
+  };
 
   return (
     <div className="space-y-8">
@@ -150,10 +164,36 @@ export default async function TenantPage({
               </p>
             ) : null}
             <div className="space-y-3">
-              {visible.map((gap) => (
-                <GapCard key={gap.obligation_id} gap={gap} />
+              {pageItems.map((gap) => (
+                <GapCard key={gap.obligation_id} gap={gap} tenantId={tenantId} />
               ))}
             </div>
+            {visible.length > PAGE_SIZE ? (
+              <div className="flex items-center justify-between gap-4 pt-2">
+                <p className="text-xs text-slate-500">
+                  {(current - 1) * PAGE_SIZE + 1} to{" "}
+                  {Math.min(current * PAGE_SIZE, visible.length)} of {visible.length}
+                </p>
+                <div className="flex items-center gap-2">
+                  {current > 1 ? (
+                    <Link
+                      href={query(current - 1)}
+                      className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-200"
+                    >
+                      Previous
+                    </Link>
+                  ) : null}
+                  {current < totalPages ? (
+                    <Link
+                      href={query(current + 1)}
+                      className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-200"
+                    >
+                      Next
+                    </Link>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
           </>
         )}
       </section>

@@ -1,12 +1,18 @@
 import Link from "next/link";
+import { NewWorkspace } from "@/components/NewWorkspace";
 import { SignOutButton } from "@/components/SignOutButton";
-import { listTenants, requireToken } from "@/lib/api";
+import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
+import { listMemberships, listTenants, requireToken } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const token = await requireToken();
-  const tenants = await listTenants(token);
+  const [tenants, memberships] = await Promise.all([
+    listTenants(token),
+    listMemberships(token),
+  ]);
+  const activeId = tenants[0]?.id ?? 0;
 
   return (
     <div className="space-y-10">
@@ -24,9 +30,15 @@ export default async function HomePage() {
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-xs font-medium uppercase tracking-widest text-slate-500">
-          Tenants
-        </h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-xs font-medium uppercase tracking-widest text-slate-500">
+            Workspace
+          </h2>
+          <div className="flex flex-wrap items-center gap-3">
+            <WorkspaceSwitcher memberships={memberships} activeId={activeId} />
+            <NewWorkspace />
+          </div>
+        </div>
         {tenants.length === 0 ? (
           <p className="rounded-xl border border-dashed border-slate-800 p-6 text-sm text-slate-500">
             No tenants yet. Onboard one with{" "}

@@ -1,6 +1,7 @@
 import { Nav } from "@/components/landing/Nav";
 import { Reveal } from "@/components/landing/Reveal";
 import { TaglineReveal } from "@/components/landing/TaglineReveal";
+import { Topography } from "@/components/landing/Topography";
 
 const BENEFITS = [
   {
@@ -82,7 +83,14 @@ export default function LandingPage() {
     <>
       <Nav />
 
-      <main id="main" className="mx-auto max-w-[1120px] px-6 pb-24">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-0 z-0 overflow-hidden"
+      >
+        <Topography />
+      </div>
+
+      <main id="main" className="relative z-10 mx-auto max-w-[1120px] px-6 pb-24">
         <section className="pt-24 pb-12">
           <h1 className="heading-1 balance max-w-[680px] bg-gradient-to-r from-white to-[#9B9B9B] bg-clip-text text-transparent">
             Every regulatory change, traced to the clause in your own policy.
@@ -250,7 +258,7 @@ export default function LandingPage() {
         </section>
       </main>
 
-      <footer className="border-t border-[#272727]">
+      <footer className="relative z-10 border-t border-[#272727]">
         <div className="mx-auto flex max-w-[1120px] flex-wrap items-center justify-between gap-4 px-6 py-10">
           <p className="caption-2 text-[#9B9B9B]">
             RegIntel. Informational, not legal advice.

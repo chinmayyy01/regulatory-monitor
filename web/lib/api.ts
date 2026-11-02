@@ -28,6 +28,8 @@ export type Gap = {
   section_no: string | null;
   document_title: string | null;
   policy_span: { start: number; end: number } | null;
+  page: number | null;
+  document_id: number | null;
 };
 
 export type GapsResponse = {
@@ -104,6 +106,12 @@ export async function requireToken(): Promise<string> {
 
 export async function listTenants(token: string): Promise<Tenant[]> {
   return get<Tenant[]>("/api/tenants", token);
+}
+
+export type Membership = { tenant_id: number; name: string; role: string };
+
+export async function listMemberships(token: string): Promise<Membership[]> {
+  return get<Membership[]>("/api/auth/tenants", token);
 }
 
 export async function getGaps(tenantId: number, token: string): Promise<GapsResponse> {

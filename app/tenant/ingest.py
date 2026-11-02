@@ -11,6 +11,7 @@ from app.ingest.segment import Clause, segment
 from app.search.embed import embed_texts, vector_literal
 
 EMBED_BATCH = 32
+PDF_DIR = Path("data/tenant_pdfs")
 
 INSERT_CLAUSE = """
 INSERT INTO tenant_clause
@@ -57,9 +58,14 @@ def store_document(
     clauses: list[Clause],
     sha256: str,
     page_count: int,
+    payload: bytes = b"",
     version: str | None = None,
     effective_from: date | None = None,
 ) -> int | None:
+    if payload:
+        PDF_DIR.mkdir(parents=True, exist_ok=True)
+        (PDF_DIR / f"{sha256}.pdf").write_bytes(payload)
+
     row = connection.execute(
         """
         INSERT INTO tenant_doc (tenant_id, title, doc_type, version, effective_from, sha256, page_count)
@@ -111,6 +117,7 @@ def ingest_pdf(
         segment(lines),
         digest,
         pages,
+        payload,
         version,
         effective_from,
     )

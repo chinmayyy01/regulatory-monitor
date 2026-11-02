@@ -5,7 +5,7 @@ import uuid
 
 from psycopg.types.json import Jsonb
 
-from app.config import MODEL_JUDGE
+from app.config import MODEL_JUDGE, TPM_LIMIT
 from app.db import apply_schema, connect
 from app.extract.llm import LlmError
 from app.mapping.applicability import applies, tenant_facets
@@ -13,7 +13,7 @@ from app.mapping.judge import judge
 from app.rate import TokenPacer
 from app.search.embed import embed_texts, parse_vector, vector_literal
 
-TPM_LIMIT = int(os.getenv("GROQ_TPM_LIMIT", "8000"))
+TPM_LIMIT = int(os.getenv("GROQ_TPM_LIMIT", str(TPM_LIMIT)))
 MAX_CONSECUTIVE_FAILURES = 4
 
 TENANT = "SELECT id, entity_type, products FROM tenant WHERE name = %s"
@@ -49,21 +49,26 @@ ON CONFLICT (obligation_id, tenant_clause_id, run_id) DO NOTHING
 """
 
 
-def embedding_pending(connection, limit: int = 500) -> int:
-    rows = connection.execute(
-        "SELECT id, action FROM obligation WHERE embedding IS NULL ORDER BY id LIMIT %s",
-        (limit,),
-    ).fetchall()
-    if not rows:
-        return 0
-    vectors = embed_texts([f"{action}" for _, action in rows])
-    for (obligation_id, _), vector in zip(rows, vectors):
-        connection.execute(
-            "UPDATE obligation SET embedding = %s::vector WHERE id = %s",
-            (vector_literal(vector), obligation_id),
-        )
-    connection.commit()
-    return len(rows)
+def embedding_pending(connection, limit: int = 20000) -> int:
+    done = 0
+    while done < limit:
+        rows = connection.execute(
+            "SELECT id, action FROM obligation WHERE embedding IS NULL ORDER BY id LIMIT %s",
+            (min(256, limit - done),),
+        ).fetchall()
+        if not rows:
+            break
+        vectors = embed_texts([action for _, action in rows])
+        for (obligation_id, _), vector in zip(rows, vectors):
+            connection.execute(
+                "UPDATE obligation SET embedding = %s::vector WHERE id = %s",
+                (vector_literal(vector), obligation_id),
+            )
+        connection.commit()
+        done += len(rows)
+        if done % 2048 == 0:
+            print(f"  embedded {done} obligations", flush=True)
+    return done
 
 
 def run(connection, tenant_name: str, args) -> tuple[int, int, int]:

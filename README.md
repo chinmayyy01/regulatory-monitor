@@ -261,21 +261,24 @@ make eval-obligations
 the gold citation) plus 8 adversarial unanswerable questions. The runner reports gold-citation recall,
 same-document rate, citation precision, abstention accuracy and latency.
 
-Full run, 48 questions (40 answerable, 8 unanswerable), with entailment checking enabled:
+Full run, 48 questions (40 answerable, 8 unanswerable), with entailment checking enabled. The last row
+shows the effect of widening the retrieval pool from 30 to 60 candidates and returning 10 clauses
+instead of 8:
 
 | metric | value |
 | --- | --- |
-| gold citation recall | 0.375 |
-| same-document rate | 0.80 |
+| gold citation recall | 0.40 |
+| same-document rate | 0.825 |
 | citation precision | 0.405 |
 | abstention accuracy (8 unanswerable) | **1.00** |
 | claims dropped for unverifiable quotes | 2 |
 | claims dropped because the quote did not support them | 5 |
-| latency p50 / p95 | 4.2s / 6.3s |
+| latency p50 / p95 | 6.0s / 10.2s |
 
-Interpretation, honestly: recall and same-document rate fell when entailment was enabled (0.45 → 0.375,
-0.925 → 0.80) because five claims that previously survived quote verification were dropped for not
-being supported by their quote. That is the trade you want: a lower score for answers you can defend.
+Interpretation, honestly: widening the pool moved exact-clause recall only 0.375 → 0.40 while adding
+two seconds of latency. The ceiling is not pool size; it is clause segmentation and question quality.
+Recall also sits below the 0.45 measured before entailment, because claims that survived quote
+verification but were not supported by their quote are now dropped — the trade you want.
 Abstention is perfect on this set: all eight unanswerable questions were refused.
 
 Caveats: the question set is machine-drafted, several prompts still ask about the document rather than

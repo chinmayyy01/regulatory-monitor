@@ -90,10 +90,10 @@ def _label(kind: str, title: str, section_no: str | None) -> str:
     return f"{kind} · {title[:70]}{section}"
 
 
-POOL = 30
+POOL = 60
 
 
-def regulation_sources(connection, question: str, embedding: list[float], as_of: date | None, limit: int = 8) -> list[Source]:
+def regulation_sources(connection, question: str, embedding: list[float], as_of: date | None, limit: int = 10) -> list[Source]:
     when = as_of or date.today()
     literal = vector_literal(embedding)
     dense = connection.execute(DENSE_REGULATION, (when, when, literal, POOL)).fetchall()

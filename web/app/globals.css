@@ -55,6 +55,28 @@ body {
 }
 .landing .tagline-word.on { color: #ffffff; }
 
+@keyframes topo-a {
+  0%   { transform: translate3d(0, 0, 0) rotate(0deg); }
+  50%  { transform: translate3d(-22px, 12px, 0) rotate(0.5deg); }
+  100% { transform: translate3d(-44px, 0, 0) rotate(0deg); }
+}
+
+@keyframes topo-b {
+  0%   { transform: translate3d(0, 0, 0) rotate(0deg); }
+  50%  { transform: translate3d(26px, -14px, 0) rotate(-0.45deg); }
+  100% { transform: translate3d(52px, 0, 0) rotate(0deg); }
+}
+
+.landing .topo-a {
+  transform-origin: center;
+  animation: topo-a 38s var(--curve) infinite alternate;
+}
+
+.landing .topo-b {
+  transform-origin: center;
+  animation: topo-b 48s var(--curve) infinite alternate;
+}
+
 @media (max-width: 639px) {
   .landing .heading-1 { font-size: 3rem; line-height: 1; }
   .landing .heading-2 { font-size: 2.25rem; line-height: 2.5rem; }
@@ -64,4 +86,6 @@ body {
   .landing .reveal { opacity: 1; transform: none; transition: none; }
   .landing .tagline-word { color: #ffffff; transition: none; }
   .landing * { transition-duration: 1ms !important; animation-duration: 1ms !important; }
+  .landing .topo-a,
+  .landing .topo-b { animation: none; }
 }

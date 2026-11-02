@@ -26,7 +26,7 @@ function Excerpt({
   );
 }
 
-export function GapCard({ gap }: { gap: Gap }) {
+export function GapCard({ gap, tenantId }: { gap: Gap; tenantId: number }) {
   return (
     <article className="rounded-xl border border-slate-800 bg-slate-900/40 p-5">
       <div className="flex items-start justify-between gap-4">
@@ -73,9 +73,21 @@ export function GapCard({ gap }: { gap: Gap }) {
       </dl>
 
       {gap.document_title ? (
-        <p className="mt-3 text-xs text-slate-500">
-          {gap.document_title}
-          {gap.section_no ? ` · s.${gap.section_no}` : ""}
+        <p className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-500">
+          <span>
+            {gap.document_title}
+            {gap.section_no ? ` · s.${gap.section_no}` : ""}
+          </span>
+          {gap.document_id && gap.page ? (
+            <a
+              href={`/api/pdf?tenantId=${tenantId}&documentId=${gap.document_id}#page=${gap.page}`}
+              target="_blank"
+              rel="noreferrer"
+              className="underline hover:text-slate-300"
+            >
+              open page {gap.page}
+            </a>
+          ) : null}
         </p>
       ) : null}
     </article>

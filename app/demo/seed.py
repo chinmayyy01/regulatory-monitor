@@ -68,6 +68,7 @@ def main() -> None:
             segment(lines),
             hashlib.sha256(payload).hexdigest(),
             pages,
+            payload,
             effective_from=date.today(),
         )
         print(f"  {'+' if document_id else '='} {path.name}", flush=True)
