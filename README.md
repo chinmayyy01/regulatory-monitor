@@ -272,13 +272,18 @@ instead of 8:
 | citation precision | 0.405 |
 | abstention accuracy (8 unanswerable) | **1.00** |
 | claims dropped for unverifiable quotes | 2 |
-| claims dropped because the quote did not support them | 5 |
-| latency p50 / p95 | 6.0s / 10.2s |
+| claims dropped because the quote did not support them | 8 |
+| latency p50 / p95 | 5.9s / 11.5s |
 
-Interpretation, honestly: widening the pool moved exact-clause recall only 0.375 → 0.40 while adding
-two seconds of latency. The ceiling is not pool size; it is clause segmentation and question quality.
-Recall also sits below the 0.45 measured before entailment, because claims that survived quote
-verification but were not supported by their quote are now dropped — the trade you want.
+Interpretation, honestly: the set was curated before these numbers were taken. Seven questions that asked
+about the document, its legal basis, or what it should be read with were dropped, one was rewritten, and
+seven intent-style questions were added. That made the set harder, which is why recall reads 0.375 rather
+than the inflated 0.40 measured against the noisy set.
+
+The ceiling is not retrieval pool size: widening it from 30 to 60 candidates moved recall by two points
+and cost two seconds. It is clause segmentation and question difficulty. Recall also sits below the 0.45
+measured before entailment, because claims that survived quote verification but were not supported by
+their quote are now dropped — the trade you want.
 Abstention is perfect on this set: all eight unanswerable questions were refused.
 
 Caveats: the question set is machine-drafted, several prompts still ask about the document rather than
