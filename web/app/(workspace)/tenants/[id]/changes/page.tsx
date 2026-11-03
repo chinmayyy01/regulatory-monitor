@@ -7,8 +7,8 @@ export const dynamic = "force-dynamic";
 const TONE: Record<string, string> = {
   worsened: "text-rose-300",
   improved: "text-emerald-300",
-  new: "text-sky-300",
-  dropped: "text-slate-400",
+  new: "text-white",
+  dropped: "text-[#9B9B9B]",
 };
 
 export default async function ChangesPage({
@@ -26,18 +26,13 @@ export default async function ChangesPage({
   const { changes, from_run, to_run } = await listChanges(tenantId, token);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
       <div>
-        <Link
-          href={`/tenants/${tenantId}`}
-          className="text-xs text-slate-500 hover:text-slate-300"
-        >
+        <Link href={`/tenants/${tenantId}`} className="app-link caption-2">
           ← {tenant.name}
         </Link>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-100">
-          What changed
-        </h1>
-        <p className="mt-1 text-sm text-slate-400">
+        <h1 className="heading-4 mt-3 text-white">What changed</h1>
+        <p className="body-6 muted mt-3">
           {from_run
             ? `Comparing run ${from_run} with ${to_run}.`
             : "At least two mapping runs are needed before a diff exists."}
@@ -45,25 +40,22 @@ export default async function ChangesPage({
       </div>
 
       {changes.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-slate-800 p-6 text-sm text-slate-500">
+        <p className="rounded-2xl border border-dashed border-[#313131] p-6 body-6 muted">
           No verdicts changed between these runs.
         </p>
       ) : (
         <ul className="space-y-3">
           {changes.map((change) => (
-            <li
-              key={change.obligation_id}
-              className="rounded-xl border border-slate-800 bg-slate-900/40 p-5"
-            >
-              <div className="flex items-center gap-3">
-                <span className={`text-xs font-medium uppercase tracking-wide ${TONE[change.direction] ?? "text-slate-300"}`}>
+            <li key={change.obligation_id} className="surface rounded-2xl p-6">
+              <div className="flex flex-wrap items-center gap-4">
+                <span className={`caption-4 uppercase tracking-wide ${TONE[change.direction] ?? "muted"}`}>
                   {change.direction}
                 </span>
-                <span className="text-xs text-slate-500">
+                <span className="caption-2 muted">
                   {change.before ?? "—"} → {change.after ?? "—"}
                 </span>
               </div>
-              <p className="mt-2 text-sm leading-6 text-slate-200">
+              <p className="body-3 mt-3 text-white">
                 {change.action || `obligation ${change.obligation_id}`}
               </p>
             </li>

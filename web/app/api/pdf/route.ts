@@ -3,9 +3,12 @@ import { NextResponse } from "next/server";
 import { API_URL, SESSION_COOKIE } from "@/lib/api";
 
 export async function GET(request: Request) {
+  const authDisabled = process.env.AUTH_DISABLED === "true";
   const store = await cookies();
   const token = store.get(SESSION_COOKIE)?.value;
-  if (!token) return new NextResponse("not signed in", { status: 401 });
+  if (!authDisabled && !token) {
+    return new NextResponse("not signed in", { status: 401 });
+  }
 
   const url = new URL(request.url);
   const tenantId = Number(url.searchParams.get("tenantId"));
@@ -16,7 +19,7 @@ export async function GET(request: Request) {
 
   const response = await fetch(
     `${API_URL}/api/tenants/${tenantId}/documents/${documentId}/pdf`,
-    { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" },
+    { headers: authDisabled ? {} : { Authorization: `Bearer ${token}` }, cache: "no-store" },
   );
   if (!response.ok) {
     return new NextResponse("not found", { status: response.status });

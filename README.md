@@ -141,6 +141,44 @@ obligations and refreshes the verdicts.
 curl -b cookie -F tenantId=1 -F file=@policy.pdf http://localhost:3100/api/upload
 ```
 
+## Auth is currently bypassed
+
+For local demos, `AUTH_DISABLED=true` makes the API act as the first tenant and the UI skip sign in
+entirely. It is set in the root `.env` for the API and in `web/.env.local` for Next, because Next reads
+env from its own directory.
+
+Remove the flag from both files and restart to turn authentication back on. The whole signup, login,
+session and Google flow is still there and still tested; it is only short circuited.
+
+With the flag on, any tenant id is reachable, which is exactly why it is a demo switch and not a
+deployment setting.
+
+## Signup and Google sign in
+
+New accounts self serve: `email + password (12 characters) + workspace name + entity type` creates a
+tenant, an owner user and a membership, then signs you in. Password hashing happens before any row is
+written, so a rejected signup never leaves an orphan workspace. Signups are rate limited to five per
+address per hour, in process.
+
+Google sign in is implemented but inert until credentials exist. Add these to `.env`:
+
+```
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+OAUTH_SHARED_SECRET=<random string, also set on the API>
+APP_BASE_URL=http://localhost:3100
+```
+
+In Google Cloud Console create an OAuth client of type "Web application" with:
+
+- Authorised JavaScript origin: `http://localhost:3100`
+- Authorised redirect URI: `http://localhost:3100/api/auth/google/callback`
+
+The flow: Google authenticates, the callback exchanges the code server side, fetches the verified email,
+and posts it to `POST /api/auth/oauth/exchange` with `X-OAuth-Secret`. That endpoint finds or creates the
+account and returns **our own session token**, so revocation and row level security are unchanged. A new
+Google user gets a workspace named after their email domain.
+
 ## Auth and isolation
 
 - Login is email + password. Passwords are hashed with `scrypt` (n=2^14, per-user salt) in
@@ -166,6 +204,33 @@ Create a login:
 make user EMAIL=you@company.dev PASSWORD='at-least-12-chars' TENANT=demo-fintech
 ```
 
+## Docker
+
+```bash
+make up      # db + api + web, built and running
+make down
+```
+
+Ports are shifted so the containerised stack can run beside a local one:
+
+| service | container | host |
+| --- | --- | --- |
+| web | 3000 | **3200** |
+| api | 8000 | **8100** |
+| postgres | 5432 | **5433** |
+
+On first boot the API applies migrations and seeds the demo tenant with four policies, so the workspace
+is populated. The regulation corpus is **not** included in the image, because it is ~1 GB of raw
+documents and the obligations cost money to extract. Populate it once:
+
+```bash
+docker compose exec api python -m app.ingest.run --start 2026-01 --end 2026-10
+docker compose exec api python -m app.extract.run --limit 500 --budget-usd 0.20
+```
+
+Without that step the app renders but every gap list is empty, which is the honest empty state rather
+than a fake one.
+
 ## Web app
 
 Two processes, one database:
@@ -175,10 +240,14 @@ make api                     # FastAPI on :8000, reads Postgres + pgvector
 make web                     # Next.js + Tailwind on :3100
 ```
 
+Or run the whole stack in Docker with `make up` (see below).
+
 - `/` — the marketing page (Manrope, floating nav, tagline reveal).
 - `/app` — tenants and their document counts.
 - `/tenants/[id]` — verdict summary and the gap list, each with the regulation quote and the
   matching (or missing) policy quote.
+- `/tenants/[id]/obligations/[id]` — one obligation: the full regulation clause, the full policy clause with
+  the matched span highlighted, the judge's reason, and a link to the source page.
 - `/tenants/[id]/changes` — verdict diff between the last two mapping runs.
 - `/tenants/[id]/chat` — ask a question, get claims with citations, or an explicit
   "not enough evidence".
@@ -290,6 +359,22 @@ Caveats: the question set is machine-drafted, several prompts still ask about th
 the obligation, and exact-clause recall is sensitive to how the parser split clauses. The comparison
 against earlier runs mixes three changes (reranker, model, regenerated questions), so it is not a
 clean ablation. Published because hiding it would be worse.
+
+## Design system
+
+One theme across the landing page, the workspace, the auth pages, legal pages and the 404: Manrope, black
+backgrounds, the same grey palette, and the named text styles (`heading-*`, `title-*`, `body-*`,
+`caption-*`) defined once in `app/globals.css`. Surfaces use `surface`, inputs use `input`, buttons use
+`btn-primary` or `btn-ghost`, so a new screen does not invent its own values.
+
+## Isolation is tested, not asserted
+
+`tests/test_rls.py` connects as the non-superuser role and asserts:
+
+- a tenant sees only its own documents,
+- a cross-tenant read returns zero rows,
+- a cross-tenant insert raises a row-level security error,
+- with no tenant set, nothing is visible.
 
 ## Mapping evaluation
 

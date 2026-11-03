@@ -1,7 +1,4 @@
 import type { Metadata } from "next";
-import { Manrope } from "next/font/google";
-
-const manrope = Manrope({ subsets: ["latin"], display: "swap" });
 
 export const metadata: Metadata = {
   title: "RegIntel — every regulatory change, traced to your own policy",
@@ -18,7 +15,7 @@ export const metadata: Metadata = {
 
 export default function LandingLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className={`landing ${manrope.className} min-h-screen`}>
+    <div className="landing min-h-screen">
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:text-black"

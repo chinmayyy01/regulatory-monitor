@@ -42,11 +42,11 @@ export function UploadPolicy({ tenantId }: { tenantId: number }) {
   }
 
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5">
-      <div className="flex items-center justify-between gap-4">
+    <div className="surface rounded-2xl p-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <p className="text-sm font-medium text-slate-200">Add a policy</p>
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="title-3 text-white">Add a policy</p>
+          <p className="caption-2 muted mt-2">
             PDF, up to 10 MB. Text is extracted and embedded on this machine.
           </p>
         </div>
@@ -54,7 +54,7 @@ export function UploadPolicy({ tenantId }: { tenantId: number }) {
           type="button"
           disabled={busy}
           onClick={() => input.current?.click()}
-          className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-200 transition hover:border-slate-600 disabled:opacity-40"
+          className="btn-ghost caption-1 rounded-full px-3 py-2 disabled:opacity-40"
         >
           {busy ? "Uploading…" : "Choose PDF"}
         </button>
@@ -69,9 +69,9 @@ export function UploadPolicy({ tenantId }: { tenantId: number }) {
         onChange={(event) => void upload(event.target.files)}
       />
 
-      {status ? <p className="mt-3 text-xs text-emerald-300">{status}</p> : null}
+      {status ? <p className="caption-2 mt-4 text-emerald-300">{status}</p> : null}
       {error ? (
-        <p className="mt-3 whitespace-pre-line text-xs text-rose-300">{error}</p>
+        <p className="caption-2 mt-4 whitespace-pre-line text-rose-300">{error}</p>
       ) : null}
     </div>
   );

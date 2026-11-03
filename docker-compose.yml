@@ -1,0 +1,53 @@
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: regintel
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d regintel"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    ports:
+      - "5433:5432"
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/regintel
+      DATABASE_URL_APP: postgresql://regintel_app:app@db:5432/regintel
+      AUTH_DISABLED: "true"
+      HF_HOME: /cache/huggingface
+    volumes:
+      - ./data:/app/data
+      - model-cache:/cache/huggingface
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8100:8000"
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    environment:
+      API_URL: http://api:8000
+      AUTH_DISABLED: "true"
+      APP_BASE_URL: http://localhost:3200
+    depends_on:
+      - api
+    ports:
+      - "3200:3000"
+
+volumes:
+  pgdata:
+  model-cache:

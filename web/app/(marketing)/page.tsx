@@ -102,7 +102,7 @@ export default function LandingPage() {
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-4">
             <a
-              href="/login"
+              href="/signup"
               className="button-md rounded-full bg-white px-3 py-2 text-black transition-transform duration-300 hover:scale-[1.02] active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
             >
               Request access
@@ -248,7 +248,7 @@ export default function LandingPage() {
                 </p>
               </div>
               <a
-                href="/login"
+                href="/signup"
                 className="button-md rounded-full bg-white px-3 py-2 text-black transition-transform duration-300 hover:scale-[1.02] active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
               >
                 Request access

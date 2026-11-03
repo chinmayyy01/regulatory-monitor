@@ -104,3 +104,71 @@ body {
   .landing .topo-a,
   .landing .topo-b { animation: none; }
 }
+
+/* Shared app surfaces, same palette as the landing page */
+.landing .surface {
+  background: #181818;
+  border: 1px solid #272727;
+}
+
+.landing .surface-2 {
+  background: #1f1f1f;
+}
+
+.landing .divider {
+  border-color: #272727;
+}
+
+.landing .muted {
+  color: #9b9b9b;
+}
+
+.landing .app-link {
+  color: #9b9b9b;
+  transition: color 300ms var(--curve);
+}
+
+.landing .app-link:hover {
+  color: #ffffff;
+}
+
+.landing .btn-primary {
+  background: #ffffff;
+  color: #000000;
+  transition: transform 300ms var(--curve), background 300ms var(--curve);
+}
+
+.landing .btn-primary:hover {
+  transform: scale(1.02);
+}
+
+.landing .btn-primary:active {
+  transform: scale(0.98);
+}
+
+.landing .btn-ghost {
+  border: 1px solid #313131;
+  color: #ffffff;
+  transition: border-color 300ms var(--curve), background 300ms var(--curve);
+}
+
+.landing .btn-ghost:hover {
+  border-color: #4a4a4a;
+  background: #181818;
+}
+
+.landing .input {
+  background: #181818;
+  border: 1px solid #272727;
+  color: #ffffff;
+  transition: border-color 300ms var(--curve);
+}
+
+.landing .input:focus {
+  border-color: #4a4a4a;
+  outline: none;
+}
+
+.landing .input::placeholder {
+  color: #6b6b6b;
+}

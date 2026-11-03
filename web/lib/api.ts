@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 export const API_URL = process.env.API_URL ?? "http://localhost:8000";
 export const SESSION_COOKIE = "regintel_session";
+export const AUTH_DISABLED = process.env.AUTH_DISABLED === "true";
 
 export type Tenant = {
   id: number;
@@ -65,7 +66,7 @@ export async function sessionToken(): Promise<string | null> {
 async function get<T>(path: string, token: string): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, {
     cache: "no-store",
-    headers: { Authorization: `Bearer ${token}` },
+    headers: AUTH_DISABLED ? {} : { Authorization: `Bearer ${token}` },
   });
   if (response.status === 401) {
     redirect("/login");
@@ -99,6 +100,7 @@ export async function currentUser(token: string): Promise<SessionUser | null> {
 }
 
 export async function requireToken(): Promise<string> {
+  if (AUTH_DISABLED) return "";
   const token = await sessionToken();
   if (!token) redirect("/login");
   return token;
@@ -131,6 +133,40 @@ export type ChangesResponse = {
   to_run: string | null;
   changes: Change[];
 };
+
+export type ObligationDetail = {
+  obligation_id: number;
+  action: string;
+  condition: string;
+  modality: string;
+  scope_entities: string[];
+  valid_from: string | null;
+  regulation_clause_id: number;
+  regulation_text: string;
+  regulation_section: string | null;
+  regulation_page: number | null;
+  regulation_title: string;
+  verdict: string | null;
+  confidence: number | null;
+  evidence_regulation: string;
+  evidence_policy: string;
+  reason: string;
+  policy_clause_id: number | null;
+  policy_text: string | null;
+  policy_section: string | null;
+  policy_page: number | null;
+  policy_title: string | null;
+  policy_span: { start: number; end: number } | null;
+  policy_document_id: number | null;
+};
+
+export async function getObligationDetail(
+  tenantId: number,
+  obligationId: number,
+  token: string,
+): Promise<ObligationDetail> {
+  return get<ObligationDetail>(`/api/tenants/${tenantId}/obligations/${obligationId}`, token);
+}
 
 export async function listChanges(tenantId: number, token: string): Promise<ChangesResponse> {
   return get<ChangesResponse>(`/api/tenants/${tenantId}/changes`, token);

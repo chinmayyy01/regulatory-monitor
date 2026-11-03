@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-export function LoginForm() {
+export function LoginForm({ googleEnabled = false }: { googleEnabled?: boolean }) {
   const router = useRouter();
   const [email, setEmail] = useState("demo@regintel.dev");
   const [password, setPassword] = useState("");
@@ -37,24 +37,24 @@ export function LoginForm() {
   return (
     <form onSubmit={submit} className="max-w-sm space-y-4">
       <label className="block">
-        <span className="text-xs uppercase tracking-wide text-slate-500">email</span>
+        <span className="caption-4 uppercase tracking-wide text-[#6B6B6B]">email</span>
         <input
           type="email"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           autoComplete="username"
-          className="mt-1 w-full rounded-lg border border-slate-800 bg-slate-900/70 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-500/60"
+          className="input mt-2 w-full rounded-lg px-3 py-2 text-sm"
         />
       </label>
 
       <label className="block">
-        <span className="text-xs uppercase tracking-wide text-slate-500">password</span>
+        <span className="caption-4 uppercase tracking-wide text-[#6B6B6B]">password</span>
         <input
           type="password"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           autoComplete="current-password"
-          className="mt-1 w-full rounded-lg border border-slate-800 bg-slate-900/70 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-500/60"
+          className="input mt-2 w-full rounded-lg px-3 py-2 text-sm"
         />
       </label>
 
@@ -67,10 +67,26 @@ export function LoginForm() {
       <button
         type="submit"
         disabled={loading}
-        className="w-full rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-emerald-950 transition hover:bg-emerald-400 disabled:opacity-40"
+        className="btn-primary button-md w-full rounded-full px-4 py-2 disabled:opacity-40"
       >
         {loading ? "Signing in…" : "Sign in"}
       </button>
+
+      {googleEnabled ? (
+        <>
+          <div className="muted caption-2 flex items-center gap-3">
+            <span className="h-px flex-1 bg-[#272727]" />
+            or
+            <span className="h-px flex-1 bg-[#272727]" />
+          </div>
+          <a
+            href="/api/auth/google/start"
+            className="btn-ghost caption-1 block w-full rounded-full px-4 py-2 text-center"
+          >
+            Continue with Google
+          </a>
+        </>
+      ) : null}
     </form>
   );
 }

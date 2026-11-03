@@ -28,16 +28,45 @@ def connect_app(tenant_id: int | None = None) -> psycopg.Connection:
     return connection
 
 
-def apply_schema(connection: psycopg.Connection) -> None:
+MIGRATION_TABLE = """
+CREATE TABLE IF NOT EXISTS schema_migrations (
+    filename   TEXT PRIMARY KEY,
+    applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+)
+"""
+
+
+def migrate(connection: psycopg.Connection) -> list[str]:
+    connection.execute(MIGRATION_TABLE)
+    applied = {
+        row[0]
+        for row in connection.execute("SELECT filename FROM schema_migrations").fetchall()
+    }
+    newly_applied: list[str] = []
     for path in sorted(SQL_DIR.glob("*.sql")):
+        if path.name in applied:
+            continue
         connection.execute(path.read_text(encoding="utf-8"))
-    connection.commit()
+        connection.execute(
+            "INSERT INTO schema_migrations (filename) VALUES (%s) ON CONFLICT DO NOTHING",
+            (path.name,),
+        )
+        connection.commit()
+        newly_applied.append(path.name)
+    return newly_applied
+
+
+def apply_schema(connection: psycopg.Connection) -> None:
+    migrate(connection)
 
 
 def main() -> None:
     with connect() as connection:
-        apply_schema(connection)
-    print(f"schema applied from {SQL_DIR}")
+        applied = migrate(connection)
+    if applied:
+        print("applied: " + ", ".join(applied))
+    else:
+        print("schema up to date")
 
 
 if __name__ == "__main__":

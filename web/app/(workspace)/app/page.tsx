@@ -13,36 +13,35 @@ export default async function HomePage() {
     listMemberships(token),
   ]);
   const activeId = tenants[0]?.id ?? 0;
+  const authDisabled = process.env.AUTH_DISABLED === "true";
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-12">
       <section>
-        <div className="flex items-start justify-between gap-4">
-          <h1 className="text-3xl font-semibold tracking-tight text-slate-100">
-            Compliance workspace
-          </h1>
-          <SignOutButton />
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <h1 className="heading-4 text-white">Workspace</h1>
+          {authDisabled ? null : <SignOutButton />}
         </div>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
+        <p className="body-3 muted mt-3 max-w-[680px]">
           Which regulations bind you, which of your documents went stale, and what
           to edit. Every verdict is backed by a quote from both sides.
         </p>
       </section>
 
       <section className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-xs font-medium uppercase tracking-widest text-slate-500">
-            Workspace
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <h2 className="caption-4 uppercase tracking-wide text-[#6B6B6B]">
+            Your entities
           </h2>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-4">
             <WorkspaceSwitcher memberships={memberships} activeId={activeId} />
             <NewWorkspace />
           </div>
         </div>
+
         {tenants.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-slate-800 p-6 text-sm text-slate-500">
-            No tenants yet. Onboard one with{" "}
-            <code className="text-slate-300">make tenant NAME=… DIR=…</code>.
+          <p className="surface rounded-2xl p-6 body-6 muted">
+            No workspace yet. Create one above, then upload a policy.
           </p>
         ) : (
           <ul className="grid gap-4 sm:grid-cols-2">
@@ -50,19 +49,17 @@ export default async function HomePage() {
               <li key={tenant.id}>
                 <Link
                   href={`/tenants/${tenant.id}`}
-                  className="block rounded-xl border border-slate-800 bg-slate-900/40 p-5 transition hover:border-slate-700 hover:bg-slate-900/70"
+                  className="surface block rounded-2xl p-6 transition hover:border-[#4A4A4A]"
                 >
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium text-slate-100">{tenant.name}</span>
-                    <span className="text-xs text-slate-500">
-                      {tenant.entity_type}
-                    </span>
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="title-1 text-white">{tenant.name}</span>
+                    <span className="caption-2 muted">{tenant.entity_type}</span>
                   </div>
-                  <p className="mt-3 text-sm text-slate-400">
+                  <p className="caption-1 muted mt-4">
                     {tenant.documents} documents · {tenant.clauses} clauses
                   </p>
                   {tenant.products.length > 0 ? (
-                    <p className="mt-1 text-xs text-slate-500">
+                    <p className="caption-4 mt-2 text-[#6B6B6B]">
                       {tenant.products.join(", ")}
                     </p>
                   ) : null}

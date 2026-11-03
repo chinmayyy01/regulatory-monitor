@@ -1,5 +1,6 @@
 import hashlib
 import os
+import secrets
 from pathlib import Path
 import time
 from types import SimpleNamespace
@@ -7,11 +8,13 @@ from contextlib import asynccontextmanager
 from datetime import date
 from typing import Literal
 
-from fastapi import Depends, FastAPI, File, Header, HTTPException, Request, UploadFile, status
+from fastapi import BackgroundTasks, Depends, FastAPI, File, Header, HTTPException, Request, UploadFile, status
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, Field
 
+from app.auth.accounts import EmailTaken, WorkspaceTaken, create_account
+from app.auth.passwords import hash_password
 from app.auth.audit import clear_failures, recent_failures, record_attempt, record_event
 from app.auth.passwords import verify_password
 from app.auth.sessions import (
@@ -30,9 +33,25 @@ from app.ingest.segment import segment
 from app.mapping.run import run as run_mapping
 from app.tenant.ingest import embed_pending, store_document
 from app.chat.retrieve import gather
+from app.jobs import run_map_job, start as start_job
 from app.db import apply_schema, connect, connect_app
 
 MAX_FAILURES = 5
+AUTH_DISABLED = os.getenv("AUTH_DISABLED", "").strip().lower() in ("1", "true", "yes")
+SIGNUP_LIMIT = 5
+SIGNUP_WINDOW_SECONDS = 3600
+_signups: dict[str, list[float]] = {}
+
+
+def signup_allowed(ip: str) -> bool:
+    now = time.time()
+    recent = [stamp for stamp in _signups.get(ip, []) if now - stamp < SIGNUP_WINDOW_SECONDS]
+    if len(recent) >= SIGNUP_LIMIT:
+        _signups[ip] = recent
+        return False
+    recent.append(now)
+    _signups[ip] = recent
+    return True
 
 
 @asynccontextmanager
@@ -207,11 +226,28 @@ class UploadResponse(BaseModel):
     pages: int
 
 
-class MapResponse(BaseModel):
-    run_id: str | None
+class MapJob(BaseModel):
+    job_id: int
+    status: str
+
+
+class JobStatus(BaseModel):
+    job_id: int
+    status: str
     mapped: int
-    rejected: int
-    applicable: int
+    detail: str
+
+
+class OAuthExchange(BaseModel):
+    email: EmailStr
+    name: str = ""
+
+
+class SignupRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=1, max_length=200)
+    workspace: str = Field(min_length=2, max_length=60)
+    entity_type: str = Field(default="nbfc", min_length=2, max_length=40)
 
 
 class Credentials(BaseModel):
@@ -237,7 +273,20 @@ def token_from_header(authorization: str | None) -> str | None:
     return None
 
 
+def default_session_user() -> SessionUser:
+    with connect_app() as connection:
+        row = connection.execute(
+            "SELECT id FROM tenant ORDER BY id LIMIT 1"
+        ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=503, detail="no tenant exists; run make demo")
+    return SessionUser(id=0, email="demo@localhost", tenant_id=row[0], role="owner")
+
+
 def require_user(authorization: str | None = Header(default=None)) -> SessionUser:
+    if AUTH_DISABLED:
+        return default_session_user()
+
     token = token_from_header(authorization)
     if not token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="not signed in")
@@ -255,6 +304,8 @@ def require_owner(user: SessionUser = Depends(require_user)) -> SessionUser:
 
 
 def require_tenant(user: SessionUser, tenant_id: int) -> None:
+    if AUTH_DISABLED:
+        return
     if user.tenant_id != tenant_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="not your tenant")
     with connect_app(user.tenant_id) as connection:
@@ -268,7 +319,7 @@ def require_tenant(user: SessionUser, tenant_id: int) -> None:
 
 @app.get("/api/health")
 def health() -> dict:
-    return {"status": "ok"}
+    return {"status": "ok", "auth_disabled": AUTH_DISABLED}
 
 
 def client_ip(request: Request) -> str:
@@ -276,6 +327,105 @@ def client_ip(request: Request) -> str:
     if forwarded:
         return forwarded.split(",")[0].strip()
     return request.client.host if request.client else ""
+
+
+@app.post("/api/auth/oauth/exchange", response_model=LoginResponse)
+def oauth_exchange(
+    payload: OAuthExchange,
+    request: Request,
+    x_oauth_secret: str | None = Header(default=None, alias="X-OAuth-Secret"),
+) -> LoginResponse:
+    expected = os.getenv("OAUTH_SHARED_SECRET", "").strip()
+    if not expected:
+        raise HTTPException(status_code=503, detail="OAuth is not configured on the API")
+    if not x_oauth_secret or x_oauth_secret != expected:
+        raise HTTPException(status_code=401, detail="bad exchange secret")
+
+    email = payload.email.lower().strip()
+    agent = request.headers.get("user-agent", "")
+
+    with connect_app() as connection:
+        row = connection.execute(
+            "SELECT id, email, tenant_id, role FROM app_user WHERE email = %s", (email,)
+        ).fetchone()
+        created = False
+
+        if row is None:
+            domain = email.split("@")[-1] or "workspace"
+            base_name = domain
+            suffix = 1
+            while connection.execute(
+                "SELECT 1 FROM tenant WHERE name = %s", (base_name,)
+            ).fetchone():
+                suffix += 1
+                base_name = f"{domain} {suffix}"
+
+            tenant = connection.execute(
+                "INSERT INTO tenant (name, entity_type, products) VALUES (%s, 'nbfc', %s) RETURNING id",
+                (base_name, ["lending"]),
+            ).fetchone()
+            unusable = hashlib.sha256(secrets.token_bytes(32)).hexdigest()
+            row = connection.execute(
+                """
+                INSERT INTO app_user (email, password_hash, tenant_id)
+                VALUES (%s, %s, %s)
+                RETURNING id, email, tenant_id, role
+                """,
+                (email, hash_password(unusable), tenant[0]),
+            ).fetchone()
+            connection.execute(
+                "INSERT INTO membership (user_id, tenant_id, role) VALUES (%s, %s, 'owner') "
+                "ON CONFLICT DO NOTHING",
+                (row[0], tenant[0]),
+            )
+            connection.commit()
+            created = True
+
+        token = create_session(connection, row[0], agent)
+        record_event(
+            connection,
+            "oauth_login" if not created else "oauth_signup",
+            user_id=row[0],
+            email=row[1],
+            ip=client_ip(request),
+            user_agent=agent,
+        )
+
+    return LoginResponse(
+        token=token,
+        user=SessionUser(id=row[0], email=row[1], tenant_id=row[2], role=row[3]),
+    )
+
+
+@app.post("/api/auth/signup", response_model=LoginResponse, status_code=201)
+def signup(payload: SignupRequest, request: Request) -> LoginResponse:
+    ip = client_ip(request)
+    if not signup_allowed(ip):
+        raise HTTPException(status_code=429, detail="too many accounts from this address, try later")
+
+    agent = request.headers.get("user-agent", "")
+    try:
+        with connect_app() as connection:
+            user = create_account(
+                connection,
+                payload.email,
+                payload.password,
+                payload.workspace,
+                payload.entity_type,
+            )
+            token = create_session(connection, user[0], agent)
+            record_event(connection, "signup", user_id=user[0], email=user[1], ip=ip, user_agent=agent)
+    except EmailTaken:
+        raise HTTPException(status_code=409, detail="an account with that email already exists") from None
+    except WorkspaceTaken:
+        raise HTTPException(status_code=409, detail="that workspace name is already taken") from None
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from None
+
+    return LoginResponse(
+        token=token,
+        user=SessionUser(id=user[0], email=user[1], tenant_id=user[2], role=user[3]),
+    )
 
 
 @app.post("/api/auth/login", response_model=LoginResponse)
@@ -405,6 +555,32 @@ def tenants(user: SessionUser = Depends(require_user)) -> list[Tenant]:
     ]
 
 
+class ObligationDetail(BaseModel):
+    obligation_id: int
+    action: str
+    condition: str
+    modality: str
+    scope_entities: list[str]
+    valid_from: date | None
+    regulation_clause_id: int
+    regulation_text: str
+    regulation_section: str | None
+    regulation_page: int | None
+    regulation_title: str
+    verdict: str | None
+    confidence: float | None
+    evidence_regulation: str
+    evidence_policy: str
+    reason: str
+    policy_clause_id: int | None
+    policy_text: str | None
+    policy_section: str | None
+    policy_page: int | None
+    policy_title: str | None
+    policy_span: dict | None
+    policy_document_id: int | None
+
+
 class Change(BaseModel):
     obligation_id: int
     before: str | None
@@ -417,6 +593,68 @@ class ChangesResponse(BaseModel):
     from_run: str | None
     to_run: str | None
     changes: list[Change]
+
+
+OBLIGATION_DETAIL = """
+SELECT o.id, o.action, o.condition, o.modality, o.scope_entities, o.valid_from,
+       rc.id, rc.text, rc.section_no, rc.page, rd.title
+FROM obligation o
+JOIN reg_clause rc ON rc.id = o.reg_clause_id
+JOIN reg_doc rd ON rd.id = rc.reg_doc_id
+WHERE o.id = %s
+"""
+
+LATEST_MAPPING = """
+SELECT m.verdict, m.confidence, m.evidence_regulation, m.evidence_policy, m.reason,
+       m.policy_span, tc.id, tc.text, tc.section_no, tc.page, td.id, td.title
+FROM mapping m
+LEFT JOIN tenant_clause tc ON tc.id = m.tenant_clause_id
+LEFT JOIN tenant_doc td ON td.id = tc.tenant_doc_id
+WHERE m.tenant_id = %s AND m.obligation_id = %s
+ORDER BY m.created_at DESC
+LIMIT 1
+"""
+
+
+@app.get("/api/tenants/{tenant_id}/obligations/{obligation_id}", response_model=ObligationDetail)
+def obligation_detail(
+    tenant_id: int,
+    obligation_id: int,
+    user: SessionUser = Depends(require_user),
+) -> ObligationDetail:
+    require_tenant(user, tenant_id)
+
+    with connect_app(user.tenant_id) as connection:
+        row = connection.execute(OBLIGATION_DETAIL, (obligation_id,)).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="obligation not found")
+        mapping = connection.execute(LATEST_MAPPING, (tenant_id, obligation_id)).fetchone()
+
+    return ObligationDetail(
+        obligation_id=row[0],
+        action=row[1],
+        condition=row[2] or "",
+        modality=row[3],
+        scope_entities=row[4] or [],
+        valid_from=row[5],
+        regulation_clause_id=row[6],
+        regulation_text=row[7],
+        regulation_section=row[8],
+        regulation_page=row[9],
+        regulation_title=row[10],
+        verdict=mapping[0] if mapping else None,
+        confidence=mapping[1] if mapping else None,
+        evidence_regulation=(mapping[2] or "") if mapping else "",
+        evidence_policy=(mapping[3] or "") if mapping else "",
+        reason=(mapping[4] or "") if mapping else "",
+        policy_span=mapping[5] if mapping else None,
+        policy_clause_id=mapping[6] if mapping else None,
+        policy_text=mapping[7] if mapping else None,
+        policy_section=mapping[8] if mapping else None,
+        policy_page=mapping[9] if mapping else None,
+        policy_document_id=mapping[10] if mapping else None,
+        policy_title=mapping[11] if mapping else None,
+    )
 
 
 @app.get("/api/tenants/{tenant_id}/changes", response_model=ChangesResponse)
@@ -604,33 +842,38 @@ async def upload_document(
     return UploadResponse(document_id=document_id, title=title, clauses=clause_count, pages=pages)
 
 
-@app.post("/api/tenants/{tenant_id}/map", response_model=MapResponse)
+@app.post("/api/tenants/{tenant_id}/map", response_model=MapJob, status_code=202)
 def map_tenant(
     tenant_id: int,
+    background: BackgroundTasks,
     limit: int = 10,
     user: SessionUser = Depends(require_owner),
-) -> MapResponse:
+) -> MapJob:
     require_tenant(user, tenant_id)
+    bounded = max(1, min(limit, 50))
 
     with connect_app(user.tenant_id) as connection:
-        name = connection.execute("SELECT name FROM tenant WHERE id = %s", (tenant_id,)).fetchone()[0]
-        options = SimpleNamespace(
-            limit=max(1, min(limit, 25)),
-            candidates=5,
-            sleep=0.2,
-            dry_run=False,
-            ids=None,
-            model=MODEL_WORKER,
-        )
-        mapped, rejected, applicable = run_mapping(connection, name, options)
-        run_id = connection.execute(LATEST_RUN, (tenant_id,)).fetchone()
+        job_id = start_job(connection, tenant_id, "map")
 
-    return MapResponse(
-        run_id=run_id[0] if run_id else None,
-        mapped=mapped,
-        rejected=rejected,
-        applicable=applicable,
-    )
+    background.add_task(run_map_job, job_id, tenant_id, bounded)
+    return MapJob(job_id=job_id, status="queued")
+
+
+@app.get("/api/tenants/{tenant_id}/jobs/{job_id}", response_model=JobStatus)
+def job_status(
+    tenant_id: int,
+    job_id: int,
+    user: SessionUser = Depends(require_user),
+) -> JobStatus:
+    require_tenant(user, tenant_id)
+    with connect_app(user.tenant_id) as connection:
+        row = connection.execute(
+            "SELECT id, status, mapped, detail FROM job WHERE id = %s AND tenant_id = %s",
+            (job_id, tenant_id),
+        ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="job not found")
+    return JobStatus(job_id=row[0], status=row[1], mapped=row[2], detail=row[3])
 
 
 @app.get("/api/tenants/{tenant_id}/gaps", response_model=GapsResponse)

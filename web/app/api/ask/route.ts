@@ -8,9 +8,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "cross-origin request rejected" }, { status: 403 });
   }
 
+  const authDisabled = process.env.AUTH_DISABLED === "true";
   const store = await cookies();
   const token = store.get(SESSION_COOKIE)?.value;
-  if (!token) {
+  if (!authDisabled && !token) {
     return NextResponse.json({ error: "not signed in" }, { status: 401 });
   }
 
@@ -34,10 +35,9 @@ export async function POST(request: Request) {
     `${API_URL}/api/tenants/${tenantId as number}/ask`,
     {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
+      headers: authDisabled
+        ? { "Content-Type": "application/json" }
+        : { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({ question: question.slice(0, 500) }),
       cache: "no-store",
     },

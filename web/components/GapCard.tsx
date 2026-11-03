@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Gap } from "@/lib/api";
 import { VerdictBadge } from "./VerdictBadge";
 
@@ -17,7 +18,7 @@ function Excerpt({
     <>
       {start > 0 ? "…" : null}
       {text.slice(start, span.start)}
-      <mark className="rounded bg-emerald-500/20 px-0.5 text-emerald-100">
+      <mark className="rounded-sm bg-white/15 px-1 text-white">
         {text.slice(span.start, span.end)}
       </mark>
       {text.slice(span.end, end)}
@@ -28,39 +29,27 @@ function Excerpt({
 
 export function GapCard({ gap, tenantId }: { gap: Gap; tenantId: number }) {
   return (
-    <article className="rounded-xl border border-slate-800 bg-slate-900/40 p-5">
+    <article className="surface rounded-2xl p-6">
       <div className="flex items-start justify-between gap-4">
-        <p className="text-sm font-medium leading-6 text-slate-100">
+        <p className="title-2 text-white">
           {gap.action}
-          {gap.condition ? (
-            <span className="text-slate-400"> — {gap.condition}</span>
-          ) : null}
+          {gap.condition ? <span className="muted"> — {gap.condition}</span> : null}
         </p>
         <VerdictBadge verdict={gap.verdict} />
       </div>
 
-      {gap.reason ? (
-        <p className="mt-3 text-sm leading-6 text-slate-400">{gap.reason}</p>
-      ) : null}
+      {gap.reason ? <p className="body-6 muted mt-3">{gap.reason}</p> : null}
 
-      <dl className="mt-4 grid gap-3 sm:grid-cols-2">
-        <div className="rounded-lg bg-slate-950/60 p-3">
-          <dt className="text-[11px] uppercase tracking-wide text-slate-500">
-            regulation
-          </dt>
-          <dd className="mt-1 text-sm leading-6 text-slate-300">
-            {gap.evidence_regulation ? (
-              `“${gap.evidence_regulation}”`
-            ) : (
-              <span className="text-slate-400">{gap.action}</span>
-            )}
+      <dl className="mt-6 grid gap-4 sm:grid-cols-2">
+        <div className="surface-2 rounded-lg p-4">
+          <dt className="caption-4 uppercase tracking-wide text-[#6B6B6B]">regulation</dt>
+          <dd className="body-6 mt-2 text-[#D4D4D4]">
+            {gap.evidence_regulation ? `“${gap.evidence_regulation}”` : gap.action}
           </dd>
         </div>
-        <div className="rounded-lg bg-slate-950/60 p-3">
-          <dt className="text-[11px] uppercase tracking-wide text-slate-500">
-            your policy
-          </dt>
-          <dd className="mt-1 text-sm leading-6 text-slate-300">
+        <div className="surface-2 rounded-lg p-4">
+          <dt className="caption-4 uppercase tracking-wide text-[#6B6B6B]">your policy</dt>
+          <dd className="body-6 mt-2 text-[#D4D4D4]">
             {gap.clause_text && gap.evidence_policy ? (
               <Excerpt text={gap.clause_text} span={gap.policy_span} />
             ) : gap.evidence_policy ? (
@@ -72,24 +61,30 @@ export function GapCard({ gap, tenantId }: { gap: Gap; tenantId: number }) {
         </div>
       </dl>
 
-      {gap.document_title ? (
-        <p className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-500">
-          <span>
+      <div className="mt-6 flex flex-wrap items-center gap-4">
+        <Link
+          href={`/tenants/${tenantId}/obligations/${gap.obligation_id}`}
+          className="app-link caption-1 underline"
+        >
+          open detail
+        </Link>
+        {gap.document_id && gap.page ? (
+          <a
+            href={`/api/pdf?tenantId=${tenantId}&documentId=${gap.document_id}#page=${gap.page}`}
+            target="_blank"
+            rel="noreferrer"
+            className="app-link caption-1 underline"
+          >
+            source page {gap.page}
+          </a>
+        ) : null}
+        {gap.document_title ? (
+          <span className="caption-4 text-[#6B6B6B]">
             {gap.document_title}
             {gap.section_no ? ` · s.${gap.section_no}` : ""}
           </span>
-          {gap.document_id && gap.page ? (
-            <a
-              href={`/api/pdf?tenantId=${tenantId}&documentId=${gap.document_id}#page=${gap.page}`}
-              target="_blank"
-              rel="noreferrer"
-              className="underline hover:text-slate-300"
-            >
-              open page {gap.page}
-            </a>
-          ) : null}
-        </p>
-      ) : null}
+        ) : null}
+      </div>
     </article>
   );
 }

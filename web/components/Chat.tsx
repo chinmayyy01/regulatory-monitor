@@ -37,22 +37,22 @@ export function Chat({ tenantId }: { tenantId: number }) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <form
         onSubmit={(event) => {
           event.preventDefault();
           void submit(question);
         }}
-        className="space-y-3"
+        className="space-y-4"
       >
         <textarea
           value={question}
           onChange={(event) => setQuestion(event.target.value)}
           rows={3}
           placeholder="Ask something the sources can answer…"
-          className="w-full resize-none rounded-xl border border-slate-800 bg-slate-900/60 p-4 text-sm text-slate-100 outline-none placeholder:text-slate-600 focus:border-emerald-500/60"
+          className="input w-full resize-none rounded-xl p-4 text-sm"
         />
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap gap-2">
             {SUGGESTIONS.map((suggestion) => (
               <button
@@ -62,7 +62,7 @@ export function Chat({ tenantId }: { tenantId: number }) {
                   setQuestion(suggestion);
                   void submit(suggestion);
                 }}
-                className="rounded-full border border-slate-800 px-3 py-1 text-xs text-slate-400 transition hover:border-slate-700 hover:text-slate-200"
+                className="caption-2 rounded-full border border-[#313131] px-3 py-1 text-[#9B9B9B] transition hover:border-[#4A4A4A] hover:text-white"
               >
                 {suggestion.length > 44 ? `${suggestion.slice(0, 44)}…` : suggestion}
               </button>
@@ -71,7 +71,7 @@ export function Chat({ tenantId }: { tenantId: number }) {
           <button
             type="submit"
             disabled={loading || question.trim().length < 3}
-            className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-emerald-950 transition hover:bg-emerald-400 disabled:opacity-40"
+            className="btn-primary caption-1 rounded-full px-4 py-2 disabled:opacity-40"
           >
             {loading ? "Checking sources…" : "Ask"}
           </button>
@@ -79,20 +79,17 @@ export function Chat({ tenantId }: { tenantId: number }) {
       </form>
 
       {error ? (
-        <p className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-200">
+        <p className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-5 text-sm text-rose-200">
           {error}
         </p>
       ) : null}
 
       {answer?.insufficient ? (
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-5">
-          <p className="text-sm font-medium text-amber-200">
-            Not enough evidence in the indexed documents.
-          </p>
-          <p className="mt-1 text-xs text-amber-200/70">
-            {answer.rejected} claim(s) dropped for unverifiable quotes,{" "}
-            {answer.unsupported} claim(s) dropped because the quote did not support
-            them.
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-6">
+          <p className="title-3 text-amber-200">Not enough evidence in the indexed documents.</p>
+          <p className="caption-2 mt-2 text-amber-200/70">
+            {answer.rejected} claim(s) dropped for unverifiable quotes, {answer.unsupported}{" "}
+            claim(s) dropped because the quote did not support them.
           </p>
         </div>
       ) : null}
@@ -100,19 +97,13 @@ export function Chat({ tenantId }: { tenantId: number }) {
       {answer && !answer.insufficient ? (
         <ul className="space-y-4">
           {answer.claims.map((claim, index) => (
-            <li
-              key={index}
-              className="rounded-xl border border-slate-800 bg-slate-900/40 p-5"
-            >
-              <p className="text-sm leading-6 text-slate-100">{claim.text}</p>
-              <ul className="mt-3 space-y-2">
+            <li key={index} className="surface rounded-2xl p-6">
+              <p className="body-3 text-white">{claim.text}</p>
+              <ul className="mt-4 space-y-3">
                 {claim.citations.map((citation, citationIndex) => (
-                  <li
-                    key={citationIndex}
-                    className="rounded-lg bg-slate-950/70 p-3 text-xs leading-5 text-slate-400"
-                  >
-                    <span className="text-slate-500">{citation.label}</span>
-                    <p className="mt-1 text-slate-300">&ldquo;{citation.quote}&rdquo;</p>
+                  <li key={citationIndex} className="surface-2 rounded-lg p-4">
+                    <span className="caption-4 text-[#6B6B6B]">{citation.label}</span>
+                    <p className="caption-2 mt-2 text-[#D4D4D4]">“{citation.quote}”</p>
                   </li>
                 ))}
               </ul>

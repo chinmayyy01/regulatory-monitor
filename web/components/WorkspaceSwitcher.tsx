@@ -30,17 +30,17 @@ export function WorkspaceSwitcher({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <span className="text-xs uppercase tracking-wide text-slate-500">workspaces</span>
+      <span className="caption-4 uppercase tracking-wide text-[#6B6B6B]">workspaces</span>
       {memberships.map((membership) => (
         <button
           key={membership.tenant_id}
           type="button"
           disabled={busy !== null}
           onClick={() => switchTo(membership.tenant_id)}
-          className={`rounded-full border px-3 py-1 text-xs transition disabled:opacity-40 ${
+          className={`caption-1 rounded-full border px-3 py-1 transition disabled:opacity-40 ${
             membership.tenant_id === activeId
-              ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-200"
-              : "border-slate-800 text-slate-300 hover:border-slate-700"
+              ? "border-white/40 bg-white/10 text-white"
+              : "border-[#313131] text-[#9B9B9B] hover:border-[#4A4A4A]"
           }`}
         >
           {membership.name}

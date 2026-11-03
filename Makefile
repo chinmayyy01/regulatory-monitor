@@ -57,7 +57,13 @@ eval-obligations: ## measure obligation extraction on the gold set (calls the mo
 audit: ## check pinned dependencies for known vulnerabilities
 	$(PY) -m pip_audit -r requirements.txt
 
-db-init: ## create the Postgres tables from sql/001_init.sql
+up: ## run the whole stack in Docker (db + api + web)
+	docker compose up --build
+
+down: ## stop the Docker stack
+	docker compose down
+
+db-init: ## apply versioned migrations from sql/
 	$(PY) -m app.db
 
 ingest: ## load RBI circulars into Postgres
@@ -82,4 +88,4 @@ clean: ## remove caches and the virtualenv
 	rm -rf .venv .pytest_cache
 	find . -name __pycache__ -type d -prune -exec rm -rf {} +
 
-.PHONY: help setup test eval eval-build eval-obligations extract demo demo-change user tenant map feed ask api web audit db-init ingest daily schedule unschedule clean
+.PHONY: help setup test eval eval-build eval-obligations extract demo demo-change user tenant map feed ask api web up down audit db-init ingest daily schedule unschedule clean

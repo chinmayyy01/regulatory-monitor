@@ -17,7 +17,7 @@ export function SignOutButton() {
         router.replace("/login");
         router.refresh();
       }}
-      className="rounded-lg border border-slate-800 px-3 py-1.5 text-xs text-slate-400 transition hover:border-slate-700 hover:text-slate-200 disabled:opacity-40"
+      className="btn-ghost caption-1 rounded-full px-3 py-1.5 disabled:opacity-40"
     >
       {loading ? "Signing out…" : "Sign out"}
     </button>

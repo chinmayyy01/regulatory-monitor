@@ -19,11 +19,12 @@ export default async function TenantPage({
 }) {
   const { id } = await params;
   const { verdict, page: pageParam } = await searchParams;
+  const tenantId = Number(id);
+  if (!Number.isFinite(tenantId)) notFound();
+
   const active = ["satisfied", "partial", "stale", "missing"].includes(verdict ?? "")
     ? (verdict as string)
     : null;
-  const tenantId = Number(id);
-  if (!Number.isFinite(tenantId)) notFound();
 
   const token = await requireToken();
   const tenants = await listTenants(token);
@@ -34,6 +35,7 @@ export default async function TenantPage({
     getGaps(tenantId, token),
     listDocuments(tenantId, token),
   ]);
+
   const total = Object.values(summary).reduce((sum, value) => sum + value, 0);
   const visible = active ? gaps.filter((gap) => gap.verdict === active) : gaps;
   const totalPages = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
@@ -51,32 +53,24 @@ export default async function TenantPage({
   };
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <div className="space-y-12">
+      <div className="flex flex-wrap items-start justify-between gap-6">
         <div>
-          <Link href="/app" className="text-xs text-slate-500 hover:text-slate-300">
-            ← all tenants
+          <Link href="/app" className="app-link caption-2">
+            ← workspaces
           </Link>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-100">
-            {tenant.name}
-          </h1>
-          <p className="mt-1 text-sm text-slate-400">
+          <h1 className="heading-4 mt-3 text-white">{tenant.name}</h1>
+          <p className="caption-1 muted mt-2">
             {tenant.entity_type}
             {tenant.products.length ? ` · ${tenant.products.join(", ")}` : ""} ·{" "}
             {tenant.documents} documents · {tenant.clauses} clauses
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Link
-            href={`/tenants/${tenantId}/changes`}
-            className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-200 transition hover:border-slate-600"
-          >
+        <div className="flex flex-wrap items-center gap-3">
+          <Link href={`/tenants/${tenantId}/changes`} className="btn-ghost caption-1 rounded-full px-4 py-2">
             What changed
           </Link>
-          <Link
-            href={`/tenants/${tenantId}/chat`}
-            className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-emerald-950 transition hover:bg-emerald-400"
-          >
+          <Link href={`/tenants/${tenantId}/chat`} className="btn-primary caption-1 rounded-full px-4 py-2">
             Ask a question
           </Link>
         </div>
@@ -87,107 +81,93 @@ export default async function TenantPage({
           <Link
             key={name}
             href={`/tenants/${tenantId}${active === name ? "" : `?verdict=${name}`}`}
-            className={`rounded-xl border p-4 transition ${
+            className={`rounded-2xl border p-6 transition ${
               active === name
-                ? "border-emerald-500/50 bg-emerald-500/10"
-                : "border-slate-800 bg-slate-900/40 hover:border-slate-700"
+                ? "border-white/40 bg-white/10"
+                : "border-[#272727] bg-[#181818] hover:border-[#4A4A4A]"
             }`}
           >
-            <p className="text-xs uppercase tracking-wide text-slate-500">{name}</p>
-            <p className="mt-1 text-2xl font-semibold text-slate-100">
-              {summary[name] ?? 0}
-            </p>
+            <p className="caption-4 uppercase tracking-wide text-[#6B6B6B]">{name}</p>
+            <p className="heading-5 mt-2 text-white">{summary[name] ?? 0}</p>
           </Link>
         ))}
       </section>
 
-      <section className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-xs font-medium uppercase tracking-widest text-slate-500">
-            Documents
-          </h2>
+      <section className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <h2 className="caption-4 uppercase tracking-wide text-[#6B6B6B]">Documents</h2>
           <MapButton tenantId={tenantId} />
         </div>
 
         <UploadPolicy tenantId={tenantId} />
 
         {documents.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-slate-800 p-6 text-sm text-slate-500">
+          <p className="rounded-2xl border border-dashed border-[#313131] p-6 body-6 muted">
             No documents yet. Upload a policy above.
           </p>
         ) : (
-          <ul className="divide-y divide-slate-800 overflow-hidden rounded-xl border border-slate-800">
+          <ul className="surface divide-y divide-[#272727] overflow-hidden rounded-2xl">
             {documents.map((document) => (
-              <li
-                key={document.id}
-                className="flex items-center justify-between gap-4 bg-slate-900/30 px-4 py-3"
-              >
+              <li key={document.id} className="flex items-center justify-between gap-4 px-6 py-4">
                 <div>
-                  <p className="text-sm text-slate-200">{document.title}</p>
-                  <p className="text-xs text-slate-500">
-                    {document.doc_type} · {document.clauses} clauses ·{" "}
-                    {document.page_count}p
+                  <p className="title-3 text-white">{document.title}</p>
+                  <p className="caption-2 muted mt-1">
+                    {document.doc_type} · {document.clauses} clauses · {document.page_count}p
                   </p>
                 </div>
-                <span className="text-xs text-slate-600">
-                  {new Date(document.created_at).toLocaleDateString()}
-                </span>
+                <a
+                  href={`/api/pdf?tenantId=${tenantId}&documentId=${document.id}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="app-link caption-1"
+                >
+                  open
+                </a>
               </li>
             ))}
           </ul>
         )}
       </section>
 
-      <section className="space-y-3">
+      <section className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-xs font-medium uppercase tracking-widest text-slate-500">
-            Obligations
-          </h2>
-          {run_id ? (
-            <span className="text-xs text-slate-600">run {run_id}</span>
-          ) : null}
+          <h2 className="caption-4 uppercase tracking-wide text-[#6B6B6B]">Obligations</h2>
+          {run_id ? <span className="caption-4 text-[#6B6B6B]">run {run_id}</span> : null}
         </div>
 
         {total === 0 ? (
-          <p className="rounded-xl border border-dashed border-slate-800 p-6 text-sm text-slate-500">
-            No verdicts yet. Use “Re-check” after adding a document.
+          <p className="rounded-2xl border border-dashed border-[#313131] p-6 body-6 muted">
+            No verdicts yet. Upload a policy and use re-check.
           </p>
         ) : (
           <>
             {active ? (
-              <p className="text-xs text-slate-500">
-                Showing {visible.length} {active} obligation
-                {visible.length === 1 ? "" : "s"} ·{" "}
-                <Link href={`/tenants/${tenantId}`} className="underline hover:text-slate-300">
+              <p className="caption-2 muted">
+                Showing {visible.length} {active} obligation{visible.length === 1 ? "" : "s"} ·{" "}
+                <Link href={`/tenants/${tenantId}`} className="underline hover:text-white">
                   clear filter
                 </Link>
               </p>
             ) : null}
-            <div className="space-y-3">
+            <div className="space-y-4">
               {pageItems.map((gap) => (
                 <GapCard key={gap.obligation_id} gap={gap} tenantId={tenantId} />
               ))}
             </div>
             {visible.length > PAGE_SIZE ? (
               <div className="flex items-center justify-between gap-4 pt-2">
-                <p className="text-xs text-slate-500">
-                  {(current - 1) * PAGE_SIZE + 1} to{" "}
-                  {Math.min(current * PAGE_SIZE, visible.length)} of {visible.length}
+                <p className="caption-2 muted">
+                  {(current - 1) * PAGE_SIZE + 1} to {Math.min(current * PAGE_SIZE, visible.length)} of{" "}
+                  {visible.length}
                 </p>
                 <div className="flex items-center gap-2">
                   {current > 1 ? (
-                    <Link
-                      href={query(current - 1)}
-                      className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-200"
-                    >
+                    <Link href={query(current - 1)} className="btn-ghost caption-1 rounded-full px-3 py-1.5">
                       Previous
                     </Link>
                   ) : null}
                   {current < totalPages ? (
-                    <Link
-                      href={query(current + 1)}
-                      className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-200"
-                    >
+                    <Link href={query(current + 1)} className="btn-ghost caption-1 rounded-full px-3 py-1.5">
                       Next
                     </Link>
                   ) : null}
