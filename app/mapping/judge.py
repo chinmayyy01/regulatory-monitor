@@ -2,6 +2,7 @@ import re
 from dataclasses import dataclass
 
 from app.config import MODEL_JUDGE
+from app.chat.entail import supported
 from app.extract.llm import chat_json
 from app.search.span import find_span
 
@@ -22,8 +23,13 @@ Reply with JSON only:
 
 Rules:
 - verdict "satisfied": a clause covers the requirement, in substance, not just in topic.
-- verdict "partial": a clause covers part of it, or covers it with a gap (no timeline, no owner, weaker duty).
-- verdict "missing": no clause covers it. Use clause_index -1 and empty quotes.
+- verdict "satisfied": the clause addresses the same requirement and a reader could rely on it.
+- verdict "partial": the clause addresses the SAME requirement but is incomplete: part of it is missing, the
+  duty is weaker, or a condition, threshold, timeline or owner is absent.
+- verdict "missing": no clause addresses the requirement. Use clause_index -1 and empty quotes.
+- "partial" is not a hedge. A clause about a different requirement, a different return, a different form,
+  a different recipient, or a merely adjacent topic is "missing", not "partial".
+- Ask: would this clause and the obligation be satisfied by the same action? If not, it is missing.
 - evidence_regulation must be an exact quote from the obligation text.
 - evidence_policy must be an exact quote from the chosen clause. Never paraphrase.
 - If you cannot quote it, you cannot claim it. Prefer "missing" over a guessed match.
@@ -131,3 +137,18 @@ def judge(
     if isinstance(payload, list):
         payload = payload[0] if payload and isinstance(payload[0], dict) else {}
     return validate(payload, obligation_text, candidates), int(usage.get("total_tokens", 0))
+
+
+def gate(judgment: Judgment | None, obligation_text: str, checker=supported) -> tuple[Judgment | None, int]:
+    if judgment is None or judgment.verdict != "satisfied":
+        return judgment, 0
+
+    supported_by_quote, tokens = checker(obligation_text, judgment.evidence_policy)
+    if supported_by_quote:
+        return judgment, tokens
+
+    judgment.verdict = "partial"
+    judgment.reason = (
+        f"{judgment.reason} [downgraded: the quoted clause does not support the verdict]"
+    )[:400]
+    return judgment, tokens

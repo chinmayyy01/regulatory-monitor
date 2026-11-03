@@ -9,7 +9,7 @@ from app.config import MODEL_JUDGE, TPM_LIMIT
 from app.db import apply_schema, connect
 from app.extract.llm import LlmError
 from app.mapping.applicability import applies, tenant_facets
-from app.mapping.judge import judge
+from app.mapping.judge import gate, judge
 from app.rate import TokenPacer
 from app.search.embed import embed_texts, parse_vector, vector_literal
 
@@ -110,6 +110,8 @@ def run(connection, tenant_name: str, args) -> tuple[int, int, int]:
                 [row[1] for row in candidates],
                 model=getattr(args, "model", MODEL_JUDGE),
             )
+            result, entailment_tokens = gate(result, obligation_text)
+            used += entailment_tokens
         except LlmError as error:
             failed += 1
             consecutive += 1

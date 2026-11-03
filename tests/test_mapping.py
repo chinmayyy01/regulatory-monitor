@@ -99,3 +99,29 @@ def test_descriptive_evidence_is_downgraded_to_partial():
     assert result is not None
     assert result.verdict == "partial"
     assert "downgraded" in result.reason
+
+
+from app.mapping.judge import Judgment, gate
+
+BASE = Judgment(0, "satisfied", 0.9, "reg quote", "policy quote", "reason")
+
+
+def test_gate_keeps_a_supported_verdict():
+    result, tokens = gate(BASE, "carry out customer due diligence", checker=lambda *_: (True, 12))
+    assert result is not None
+    assert result.verdict == "satisfied"
+    assert tokens == 12
+
+
+def test_gate_downgrades_an_unsupported_verdict():
+    result, _ = gate(BASE, "carry out customer due diligence", checker=lambda *_: (False, 7))
+    assert result is not None
+    assert result.verdict == "partial"
+    assert "downgraded" in result.reason
+
+
+def test_gate_ignores_partial_and_missing():
+    partial = Judgment(0, "partial", 0.5, "r", "p", "reason")
+    missing = Judgment(-1, "missing", 1.0, "", "", "none")
+    assert gate(partial, "x", checker=lambda *_: (False, 99))[0].verdict == "partial"
+    assert gate(missing, "x", checker=lambda *_: (False, 99))[0].verdict == "missing"

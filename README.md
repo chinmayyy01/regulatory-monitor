@@ -291,6 +291,35 @@ the obligation, and exact-clause recall is sensitive to how the parser split cla
 against earlier runs mixes three changes (reranker, model, regenerated questions), so it is not a
 clean ablation. Published because hiding it would be worse.
 
+## Mapping evaluation
+
+Sampled 44 verdicts from one run (3 satisfied, 16 partial, 25 missing) and labelled them by hand against
+the tenant's 14 clauses:
+
+```
+agreement          40/44 = 0.909
+cohen kappa         0.826
+false satisfied     0/3
+false partial       4/16 = 0.25
+over strict         0/16
+```
+
+Two changes got there. A **satisfied verdict must survive an entailment check** — a second model asks
+whether the quoted clause actually supports the obligation, and downgrades it to partial if not. And the
+judge rubric now says partial means *the same requirement, incompletely met*; a clause about a different
+return, form or recipient is `missing`, not `partial`.
+
+Before those two changes, three of eight satisfied verdicts were wrong (0.375) and most partials were
+spurious. The honest read now is: satisfied is trustworthy on this sample, and partial still over-credits,
+mostly by treating a related reporting duty as a partial match.
+
+Caveats: 44 rows, one rater (the author, who also wrote the judge prompt), and only 3 satisfied rows, so
+these intervals are wide.
+
+```bash
+.venv/bin/python -m app.eval.mapping
+```
+
 ## Corpus
 
 As of the last backfill: **1,050 documents / 85,236 clauses** (RBI notifications and directions from
