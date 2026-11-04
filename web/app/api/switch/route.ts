@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { isSameOrigin } from "@/lib/origin";
-import { API_URL, SESSION_COOKIE } from "@/lib/api";
+import { API_URL, AUTH_DISABLED, SESSION_COOKIE } from "@/lib/api";
 
 export async function POST(request: Request) {
   if (!isSameOrigin(request)) {
@@ -9,7 +9,7 @@ export async function POST(request: Request) {
   }
   const store = await cookies();
   const token = store.get(SESSION_COOKIE)?.value;
-  if (!token) return NextResponse.json({ error: "not signed in" }, { status: 401 });
+  if (!AUTH_DISABLED && !token) return NextResponse.json({ error: "not signed in" }, { status: 401 });
 
   const body = (await request.json().catch(() => ({}))) as { tenantId?: unknown };
   const tenantId = Number(body.tenantId);
@@ -19,8 +19,16 @@ export async function POST(request: Request) {
 
   const response = await fetch(`${API_URL}/api/auth/switch/${tenantId}`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
+    headers: AUTH_DISABLED ? {} : { Authorization: `Bearer ${token}` },
     cache: "no-store",
   });
-  return NextResponse.json(await response.json(), { status: response.status });
+  const bodyText = await response.text();
+  try {
+    return NextResponse.json(JSON.parse(bodyText), { status: response.status });
+  } catch {
+    return NextResponse.json(
+      { error: `Workspace switch failed (${response.status}). Please try again.` },
+      { status: response.status },
+    );
+  }
 }

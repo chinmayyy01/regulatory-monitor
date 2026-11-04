@@ -3,6 +3,17 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+const ENTITY_TYPES = [
+  ["nbfc", "Non-bank finance company (NBFC)"],
+  ["commercial_bank", "Commercial bank"],
+  ["payments_bank", "Payments bank"],
+  ["small_finance_bank", "Small finance bank"],
+  ["cooperative_bank", "Co-operative bank"],
+  ["housing_finance", "Housing finance company"],
+  ["mutual_fund", "Mutual fund"],
+  ["stock_broker", "Stock broker"],
+];
+
 export function NewWorkspace() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -11,24 +22,30 @@ export function NewWorkspace() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function submit(event: React.FormEvent) {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (busy) return;
     setBusy(true);
     setError(null);
-    const response = await fetch("/api/workspace", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, entityType }),
-    });
-    const data = await response.json().catch(() => ({}));
-    setBusy(false);
-    if (!response.ok) {
-      setError(data?.detail ?? data?.error ?? "could not create workspace");
-      return;
+    try {
+      const response = await fetch("/api/workspace", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim(), entityType }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setError(data?.detail ?? data?.error ?? "We couldn’t create the workspace. Please try again.");
+        return;
+      }
+      setOpen(false);
+      setName("");
+      router.refresh();
+    } catch {
+      setError("We couldn’t connect. Check your connection and try again.");
+    } finally {
+      setBusy(false);
     }
-    setOpen(false);
-    setName("");
-    router.refresh();
   }
 
   if (!open) {
@@ -36,49 +53,54 @@ export function NewWorkspace() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="btn-ghost caption-1 rounded-full px-3 py-1.5"
+        className="workspace-button workspace-button-primary min-h-11 px-5"
       >
-        New workspace
+        Create workspace
       </button>
     );
   }
 
   return (
-    <form onSubmit={submit} className="surface flex flex-wrap items-end gap-3 rounded-2xl p-4">
-      <label className="block">
-        <span className="caption-4 uppercase tracking-wide text-[#6B6B6B]">name</span>
-        <input
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          required
-          minLength={2}
-          className="input mt-2 w-56 rounded-lg px-3 py-2 text-sm"
-        />
-      </label>
-      <label className="block">
-        <span className="caption-4 uppercase tracking-wide text-[#6B6B6B]">entity type</span>
-        <select
-          value={entityType}
-          onChange={(event) => setEntityType(event.target.value)}
-          className="input mt-2 w-48 rounded-lg px-3 py-2 text-sm"
-        >
-          <option value="nbfc">NBFC</option>
-          <option value="commercial_bank">commercial bank</option>
-          <option value="payments_bank">payments bank</option>
-          <option value="small_finance_bank">small finance bank</option>
-          <option value="cooperative_bank">cooperative bank</option>
-          <option value="housing_finance">housing finance</option>
-          <option value="mutual_fund">mutual fund</option>
-          <option value="stock_broker">stock broker</option>
-        </select>
-      </label>
-      <button type="submit" disabled={busy} className="btn-primary caption-1 rounded-full px-4 py-2 disabled:opacity-40">
-        {busy ? "Creating…" : "Create"}
-      </button>
-      <button type="button" onClick={() => setOpen(false)} className="btn-ghost caption-1 rounded-full px-3 py-2">
-        Cancel
-      </button>
-      {error ? <p className="caption-2 w-full text-rose-300">{error}</p> : null}
+    <form onSubmit={submit} className="workspace-panel w-full max-w-3xl p-5 sm:p-6" aria-labelledby="new-workspace-title">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h2 id="new-workspace-title" className="text-lg font-semibold">Create a workspace</h2>
+          <p className="mt-1 text-sm leading-5 text-[var(--ws-muted)]">Use one workspace for each regulated entity.</p>
+        </div>
+        <button type="button" onClick={() => setOpen(false)} className="workspace-button workspace-button-secondary min-h-11 px-4">
+          Cancel
+        </button>
+      </div>
+      <div className="mt-6 grid gap-4 sm:grid-cols-2">
+        <label className="workspace-field">
+          <span>Organization name</span>
+          <input
+            autoFocus
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            required
+            minLength={2}
+            maxLength={120}
+            autoComplete="organization"
+            className="workspace-input"
+            aria-describedby="workspace-name-help"
+          />
+          <span id="workspace-name-help" className="workspace-field-help">For example, the company name your team uses.</span>
+        </label>
+        <label className="workspace-field">
+          <span>Regulated entity type</span>
+          <select value={entityType} onChange={(event) => setEntityType(event.target.value)} className="workspace-input">
+            {ENTITY_TYPES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </select>
+          <span className="workspace-field-help">This helps determine which obligations may apply.</span>
+        </label>
+      </div>
+      {error ? <p role="alert" className="workspace-error mt-4">{error}</p> : null}
+      <div className="mt-5 flex flex-wrap items-center gap-3">
+        <button type="submit" disabled={busy || name.trim().length < 2} className="workspace-button workspace-button-primary min-h-11 px-5 disabled:cursor-not-allowed disabled:opacity-50">
+          {busy ? "Creating workspace…" : "Create workspace"}
+        </button>
+      </div>
     </form>
   );
 }

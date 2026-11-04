@@ -275,6 +275,11 @@ def token_from_header(authorization: str | None) -> str | None:
 
 def default_session_user() -> SessionUser:
     with connect_app() as connection:
+        user = connection.execute(
+            "SELECT id, email, tenant_id, role FROM app_user WHERE role = 'owner' ORDER BY id LIMIT 1"
+        ).fetchone()
+        if user is not None:
+            return SessionUser(id=user[0], email=user[1], tenant_id=user[2], role=user[3])
         row = connection.execute(
             "SELECT id FROM tenant ORDER BY id LIMIT 1"
         ).fetchone()
@@ -720,6 +725,9 @@ def switch_tenant(tenant_id: int, user: SessionUser = Depends(require_user)) -> 
 
 @app.post("/api/tenants", response_model=Tenant, status_code=201)
 def create_tenant(payload: NewTenant, user: SessionUser = Depends(require_owner)) -> Tenant:
+    if AUTH_DISABLED and user.id == 0:
+        raise HTTPException(status_code=503, detail="no local owner is seeded; run make demo")
+
     with connect_app(user.tenant_id) as connection:
         row = connection.execute(
             """

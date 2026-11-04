@@ -17,7 +17,7 @@ export function SignOutButton() {
         router.replace("/login");
         router.refresh();
       }}
-      className="btn-ghost caption-1 rounded-full px-3 py-1.5 disabled:opacity-40"
+      className="workspace-button workspace-button-secondary min-h-11 px-4 disabled:cursor-wait disabled:opacity-60"
     >
       {loading ? "Signing out…" : "Sign out"}
     </button>

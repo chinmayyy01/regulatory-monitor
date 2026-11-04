@@ -9,18 +9,16 @@ function Excerpt({
   text: string;
   span: { start: number; end: number } | null;
 }) {
-  if (!span) {
-    return <>{text.length > 240 ? `${text.slice(0, 240)}…` : text}</>;
+  if (!span || span.start < 0 || span.end > text.length) {
+    return <>{text.length > 320 ? `${text.slice(0, 320)}…` : text}</>;
   }
-  const start = Math.max(0, span.start - 90);
-  const end = Math.min(text.length, span.end + 90);
+  const start = Math.max(0, span.start - 100);
+  const end = Math.min(text.length, span.end + 100);
   return (
     <>
       {start > 0 ? "…" : null}
       {text.slice(start, span.start)}
-      <mark className="rounded-sm bg-white/15 px-1 text-white">
-        {text.slice(span.start, span.end)}
-      </mark>
+      <mark className="workspace-evidence-highlight">{text.slice(span.start, span.end)}</mark>
       {text.slice(span.end, end)}
       {end < text.length ? "…" : null}
     </>
@@ -29,61 +27,51 @@ function Excerpt({
 
 export function GapCard({ gap, tenantId }: { gap: Gap; tenantId: number }) {
   return (
-    <article className="surface rounded-2xl p-6">
-      <div className="flex items-start justify-between gap-4">
-        <p className="title-2 text-white">
+    <article className="workspace-panel p-4 sm:p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <h3 className="min-w-0 flex-1 text-base font-semibold leading-6">
           {gap.action}
-          {gap.condition ? <span className="muted"> — {gap.condition}</span> : null}
-        </p>
+          {gap.condition ? <span className="font-normal text-[var(--ws-muted)]"> — {gap.condition}</span> : null}
+        </h3>
         <VerdictBadge verdict={gap.verdict} />
       </div>
 
-      {gap.reason ? <p className="body-6 muted mt-3">{gap.reason}</p> : null}
+      {gap.reason ? <p className="mt-2 max-w-4xl text-sm leading-5 text-[var(--ws-muted)]">{gap.reason}</p> : null}
 
-      <dl className="mt-6 grid gap-4 sm:grid-cols-2">
-        <div className="surface-2 rounded-lg p-4">
-          <dt className="caption-4 uppercase tracking-wide text-[#6B6B6B]">regulation</dt>
-          <dd className="body-6 mt-2 text-[#D4D4D4]">
-            {gap.evidence_regulation ? `“${gap.evidence_regulation}”` : gap.action}
-          </dd>
+      <dl className="mt-4 grid gap-3 lg:grid-cols-2">
+        <div className="workspace-evidence-block">
+          <dt>Regulatory requirement</dt>
+          <dd>{gap.evidence_regulation ? `“${gap.evidence_regulation}”` : gap.action}</dd>
         </div>
-        <div className="surface-2 rounded-lg p-4">
-          <dt className="caption-4 uppercase tracking-wide text-[#6B6B6B]">your policy</dt>
-          <dd className="body-6 mt-2 text-[#D4D4D4]">
+        <div className="workspace-evidence-block">
+          <dt>Evidence in your policy</dt>
+          <dd>
             {gap.clause_text && gap.evidence_policy ? (
               <Excerpt text={gap.clause_text} span={gap.policy_span} />
             ) : gap.evidence_policy ? (
               `“${gap.evidence_policy}”`
             ) : (
-              <span className="text-rose-300/80">no matching clause found</span>
+              <span className="text-[var(--ws-muted)]">No matching policy text was found in this assessment.</span>
             )}
           </dd>
         </div>
       </dl>
 
-      <div className="mt-6 flex flex-wrap items-center gap-4">
-        <Link
-          href={`/tenants/${tenantId}/obligations/${gap.obligation_id}`}
-          className="app-link caption-1 underline"
-        >
-          open detail
+      <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-[var(--ws-border)] pt-3">
+        <Link href={`/tenants/${tenantId}/obligations/${gap.obligation_id}`} className="workspace-text-link min-h-11 inline-flex items-center">
+          Review both sources <span className="sr-only"> for: {gap.action}</span>
         </Link>
         {gap.document_id && gap.page ? (
           <a
             href={`/api/pdf?tenantId=${tenantId}&documentId=${gap.document_id}#page=${gap.page}`}
             target="_blank"
             rel="noreferrer"
-            className="app-link caption-1 underline"
+            className="workspace-text-link min-h-11 inline-flex items-center"
           >
-            source page {gap.page}
+            Open policy PDF, page {gap.page}
           </a>
         ) : null}
-        {gap.document_title ? (
-          <span className="caption-4 text-[#6B6B6B]">
-            {gap.document_title}
-            {gap.section_no ? ` · s.${gap.section_no}` : ""}
-          </span>
-        ) : null}
+        {gap.document_title ? <span className="text-sm text-[var(--ws-muted)]">{gap.document_title}{gap.section_no ? ` · Section ${gap.section_no}` : ""}</span> : null}
       </div>
     </article>
   );

@@ -18,15 +18,14 @@ export default async function ChatPage({
   if (!tenant) notFound();
 
   return (
-    <div className="space-y-10">
+    <div className="workspace-page max-w-5xl space-y-7">
       <div>
-        <Link href={`/tenants/${tenantId}`} className="app-link caption-2">
-          ← {tenant.name}
+        <Link href={`/tenants/${tenantId}`} className="workspace-text-link min-h-11 inline-flex items-center">
+          ← Back to {tenant.name}
         </Link>
-        <h1 className="heading-4 mt-3 text-white">Ask about regulation or your policies</h1>
-        <p className="body-6 muted mt-3 max-w-[680px]">
-          Answers cite the exact clause. If the corpus does not contain the answer, it
-          says so.
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight">Ask about obligations</h1>
+        <p className="mt-2 max-w-3xl text-base leading-6 text-[var(--ws-muted)]">
+          Ask in plain language about RBI requirements or this workspace’s policies. Every answer includes source text; if there isn’t enough evidence, no answer is shown.
         </p>
       </div>
 

@@ -117,7 +117,7 @@ export async function listMemberships(token: string): Promise<Membership[]> {
 }
 
 export async function getGaps(tenantId: number, token: string): Promise<GapsResponse> {
-  return get<GapsResponse>(`/api/tenants/${tenantId}/gaps`, token);
+  return get<GapsResponse>(`/api/tenants/${tenantId}/gaps?limit=500`, token);
 }
 
 export type Change = {

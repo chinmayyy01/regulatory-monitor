@@ -14,38 +14,50 @@ export function WorkspaceSwitcher({
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   if (memberships.length <= 1) return null;
 
   async function switchTo(tenantId: number) {
     setBusy(tenantId);
-    await fetch("/api/switch", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tenantId }),
-    });
-    setBusy(null);
-    router.refresh();
+    setError(null);
+    try {
+      const response = await fetch("/api/switch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenantId }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setError(data?.error ?? "We couldn’t switch workspaces. Please try again.");
+        return;
+      }
+      router.refresh();
+    } catch {
+      setError("We couldn’t connect. Check your connection and try again.");
+    } finally {
+      setBusy(null);
+    }
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <span className="caption-4 uppercase tracking-wide text-[#6B6B6B]">workspaces</span>
-      {memberships.map((membership) => (
-        <button
-          key={membership.tenant_id}
-          type="button"
-          disabled={busy !== null}
-          onClick={() => switchTo(membership.tenant_id)}
-          className={`caption-1 rounded-full border px-3 py-1 transition disabled:opacity-40 ${
-            membership.tenant_id === activeId
-              ? "border-white/40 bg-white/10 text-white"
-              : "border-[#313131] text-[#9B9B9B] hover:border-[#4A4A4A]"
-          }`}
-        >
-          {membership.name}
-        </button>
-      ))}
+    <div className="workspace-switcher">
+      <span className="text-sm text-[var(--ws-muted)]">Switch workspace</span>
+      <div className="flex flex-wrap gap-2">
+        {memberships.map((membership) => (
+          <button
+            key={membership.tenant_id}
+            type="button"
+            disabled={busy !== null}
+            aria-pressed={membership.tenant_id === activeId}
+            onClick={() => void switchTo(membership.tenant_id)}
+            className={`workspace-switch-button min-h-11 px-3 ${membership.tenant_id === activeId ? "is-active" : ""}`}
+          >
+            {membership.name}
+          </button>
+        ))}
+      </div>
+      {error ? <p role="alert" className="workspace-error w-full text-sm">{error}</p> : null}
     </div>
   );
 }

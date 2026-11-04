@@ -16,7 +16,7 @@ export function MapButton({ tenantId, count = 10 }: { tenantId: number; count?: 
 
   async function run() {
     setBusy(true);
-    setResult("queued…");
+    setResult(`Starting a check for the next ${count} obligations…`);
     try {
       const response = await fetch("/api/map", {
         method: "POST",
@@ -25,7 +25,7 @@ export function MapButton({ tenantId, count = 10 }: { tenantId: number; count?: 
       });
       const job = await response.json();
       if (!response.ok) {
-        setResult(job?.detail ?? "mapping failed");
+        setResult(job?.detail ?? "The check could not be started. Try again.");
         return;
       }
 
@@ -35,35 +35,39 @@ export function MapButton({ tenantId, count = 10 }: { tenantId: number; count?: 
         if (!poll.ok) continue;
         const status = (await poll.json()) as JobStatus;
         if (status.status === "done") {
-          setResult(`${status.mapped} mapped · ${status.detail}`);
+          setResult(`Check complete. ${status.mapped} obligations reviewed. ${status.detail}`);
           router.refresh();
           return;
         }
         if (status.status === "failed") {
-          setResult(status.detail || "mapping failed");
+          setResult(status.detail || "The check did not finish. Try again.");
           return;
         }
-        setResult(`${status.status}…`);
+        setResult(status.status === "queued" ? "Your check is queued…" : "Checking policy evidence…");
       }
-      setResult("still running, refresh in a moment");
+      setResult("This check is still running. You can stay here and refresh in a moment.");
     } catch {
-      setResult("mapping failed");
+      setResult("We couldn’t reach the assessment service. Check your connection and try again.");
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-4">
+    <div className="flex flex-wrap items-center gap-3">
       <button
         type="button"
         onClick={() => void run()}
         disabled={busy}
-        className="btn-ghost caption-1 rounded-full px-3 py-2 disabled:opacity-40"
+        aria-describedby={`check-help-${tenantId}`}
+        className="workspace-button workspace-button-primary min-h-11 px-4 disabled:cursor-wait disabled:opacity-60"
       >
-        {busy ? "Checking…" : `Re-check ${count} obligations`}
+        {busy ? "Checking policies…" : `Check next ${count} obligations`}
       </button>
-      {result ? <span className="caption-2 muted">{result}</span> : null}
+      <span id={`check-help-${tenantId}`} className="text-sm text-[var(--ws-muted)]">
+        Checks a small batch. You can run it again to continue.
+      </span>
+      {result ? <p aria-live="polite" role="status" className="w-full text-sm text-[var(--ws-muted)]">{result}</p> : null}
     </div>
   );
 }
