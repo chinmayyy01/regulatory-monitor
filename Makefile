@@ -54,6 +54,15 @@ extract: ## extract obligations from pending clauses (respects the daily token b
 eval-obligations: ## measure obligation extraction on the gold set (calls the model)
 	$(PY) -m app.extract.eval
 
+eval-retrieval: ## measure lexical candidate recall against chat gold clauses (no model calls)
+	$(PY) -m app.eval.retrieval
+
+eval-chat-retrieval: ## capture reranked chat sources without LLM calls (local models may initialize)
+	$(PY) -m app.eval.chat --retrieval-only
+
+eval-mapping-packet: ## create a private, blinded compliance-review packet (no model calls)
+	$(PY) -m app.eval.mapping_review
+
 audit: ## check pinned dependencies for known vulnerabilities
 	$(PY) -m pip_audit -r requirements.txt
 
@@ -88,4 +97,4 @@ clean: ## remove caches and the virtualenv
 	rm -rf .venv .pytest_cache
 	find . -name __pycache__ -type d -prune -exec rm -rf {} +
 
-.PHONY: help setup test eval eval-build eval-obligations extract demo demo-change user tenant map feed ask api web up down audit db-init ingest daily schedule unschedule clean
+.PHONY: help setup test eval eval-build eval-obligations eval-retrieval eval-chat-retrieval eval-mapping-packet extract demo demo-change user tenant map feed ask api web up down audit db-init ingest daily schedule unschedule clean

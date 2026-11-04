@@ -1,12 +1,13 @@
 import argparse
 import json
 import time
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
 from app.chat.answer import ask_with_usage
 from app.chat.retrieve import gather
 from app.db import connect
+from app.eval.constants import CHAT_EVAL_AS_OF
 from app.extract.llm import LlmError
 from app.rate import TokenPacer
 
@@ -41,6 +42,44 @@ def save_raw(records: dict[str, dict]) -> None:
     )
 
 
+def retrieval_record(row: dict, sources, as_of: date) -> dict:
+    regulation = [source for source in sources if source.kind == "regulation"]
+    clause_ids = [source.clause_id for source in regulation]
+    document_ids = [
+        source.document_id for source in regulation if source.document_id is not None
+    ]
+    return {
+        "retrieval_as_of": as_of.isoformat(),
+        "retrieved_clause_ids": clause_ids,
+        "retrieved_document_ids": document_ids,
+        "retrieval_gold_hit": bool(
+            row["answerable"] and row["gold_clause_id"] in clause_ids
+        ),
+        "retrieval_doc_hit": bool(
+            row["answerable"] and row["gold_doc_id"] in document_ids
+        ),
+    }
+
+
+def summarize_retrieval(rows: list[dict], records: dict[str, dict]) -> dict:
+    answerable = [row for row in rows if row["answerable"]]
+    traced = [
+        records[row["question"]]
+        for row in answerable
+        if row["question"] in records
+        and "retrieval_gold_hit" in records[row["question"]]
+    ]
+    exact = sum(1 for row in traced if row["retrieval_gold_hit"])
+    document = sum(1 for row in traced if row.get("retrieval_doc_hit"))
+    total = len(traced)
+    return {
+        "retrieval_rows": total,
+        "answerable_questions": len(answerable),
+        "gold_clause_recall": round(exact / total, 3) if total else None,
+        "same_document_rate": round(document / total, 3) if total else None,
+    }
+
+
 def percentile(values: list[float], fraction: float) -> float:
     if not values:
         return 0.0
@@ -60,6 +99,9 @@ def summarize(records: list[dict]) -> dict:
     cited_gold = sum(item.get("cited_gold", 0) for item in answered)
     abstained_correct = sum(1 for item in unanswerable if item["insufficient"])
     latencies = [item["latency"] for item in records if item.get("latency")]
+    retrieved = [item for item in answerable if "retrieval_gold_hit" in item]
+    retrieval_gold_hits = sum(1 for item in retrieved if item["retrieval_gold_hit"])
+    retrieval_doc_hits = sum(1 for item in retrieved if item.get("retrieval_doc_hit"))
 
     return {
         "rows": len(records),
@@ -73,6 +115,9 @@ def summarize(records: list[dict]) -> dict:
         "abstention_accuracy": round(abstained_correct / len(unanswerable), 3) if unanswerable else 0.0,
         "claims_rejected": sum(item.get("rejected", 0) for item in records),
         "claims_unsupported": sum(item.get("unsupported", 0) for item in records),
+        "retrieval_diagnostic_rows": len(retrieved),
+        "retrieval_gold_clause_recall": round(retrieval_gold_hits / len(retrieved), 3) if retrieved else None,
+        "retrieval_same_document_rate": round(retrieval_doc_hits / len(retrieved), 3) if retrieved else None,
         "model_call_failures": sum(1 for item in records if item.get("error")),
         "latency_p50_s": round(percentile(latencies, 0.5), 2),
         "latency_p95_s": round(percentile(latencies, 0.95), 2),
@@ -84,6 +129,10 @@ def failures(records: list[dict]) -> list[dict]:
     for item in records:
         if item.get("error"):
             out.append({"question": item["question"], "reason": item["error"]})
+        elif item["answerable"] and item.get("retrieval_gold_hit") is False:
+            out.append({"question": item["question"], "reason": "gold clause not retrieved"})
+        elif item["answerable"] and item.get("retrieval_gold_hit") and not item.get("gold_hit"):
+            out.append({"question": item["question"], "reason": "gold retrieved but not cited"})
         elif item["answerable"] and item["insufficient"]:
             out.append({"question": item["question"], "reason": "abstained"})
         elif item["answerable"] and not item.get("gold_hit") and not item.get("doc_hit"):
@@ -98,11 +147,49 @@ def main() -> None:
     parser.add_argument("--limit", type=int, default=0, help="process at most N unanswered rows")
     parser.add_argument("--redo", action="store_true", help="re-run rows that already have results")
     parser.add_argument("--summary-only", action="store_true", help="do not call the model")
+    parser.add_argument(
+        "--retrieval-only",
+        action="store_true",
+        help="capture local retrieval candidates without answer-model calls",
+    )
     parser.add_argument("--floor", type=float, default=25.0, help="minimum seconds between calls")
+    parser.add_argument("--as-of", default=CHAT_EVAL_AS_OF.isoformat(), help="regulatory validity date for this evaluation")
     args = parser.parse_args()
+    as_of = date.fromisoformat(args.as_of)
 
     rows = load_rows()
     records = load_raw()
+
+    if args.retrieval_only:
+        pending = [
+            row
+            for row in rows
+            if args.redo
+            or records.get(row["question"], {}).get("retrieval_as_of") != as_of.isoformat()
+        ]
+        if args.limit:
+            pending = pending[: args.limit]
+        connection = connect()
+        tenant = connection.execute("SELECT id FROM tenant WHERE name = %s", (TENANT,)).fetchone()
+        if tenant is None:
+            raise SystemExit(f"tenant not found: {TENANT}")
+        tenant_id = tenant[0]
+        for index, row in enumerate(pending, start=1):
+            sources = gather(connection, tenant_id, row["question"], as_of)
+            existing = records.get(row["question"], {})
+            records[row["question"]] = {
+                **existing,
+                "question": row["question"],
+                "answerable": row["answerable"],
+                "gold_clause_id": row["gold_clause_id"],
+                "gold_doc_id": row["gold_doc_id"],
+                **retrieval_record(row, sources, as_of),
+            }
+            save_raw(records)
+            print(f"  {index}/{len(pending)} captured {len(sources)} sources", flush=True)
+        connection.close()
+        print(json.dumps(summarize_retrieval(rows, records), indent=2))
+        return
 
     if not args.summary_only:
         pending = [
@@ -126,11 +213,14 @@ def main() -> None:
             question = row["question"]
             started = time.time()
             try:
-                sources = gather(connection, tenant_id, question)
+                sources = gather(connection, tenant_id, question, as_of)
+                retrieval = retrieval_record(row, sources, as_of)
                 answer, tokens = ask_with_usage(question, sources)
             except LlmError as error:
                 records[question] = {
                     **{key: row[key] for key in ("question", "answerable", "gold_clause_id", "gold_doc_id")},
+                    "as_of": as_of.isoformat(),
+                    **retrieval,
                     "error": str(error)[:200],
                 }
                 save_raw(records)
@@ -157,8 +247,10 @@ def main() -> None:
             records[question] = {
                 "question": question,
                 "answerable": row["answerable"],
+                "as_of": as_of.isoformat(),
                 "gold_clause_id": row["gold_clause_id"],
                 "gold_doc_id": row["gold_doc_id"],
+                **retrieval,
                 "insufficient": answer.insufficient,
                 "rejected": answer.rejected,
                 "unsupported": answer.unsupported,

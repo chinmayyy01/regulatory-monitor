@@ -20,39 +20,39 @@ c.id IN (
 """
 
 DENSE_REGULATION = f"""
-SELECT c.id, c.text, d.title, c.section_no
+SELECT c.id, c.text, d.title, c.section_no, d.id
 FROM reg_clause c
 JOIN reg_doc d ON d.id = c.reg_doc_id
 WHERE c.embedding IS NOT NULL AND {IN_FORCE_FILTER}
-ORDER BY c.embedding <=> %s::vector
+ORDER BY c.embedding <=> %s::vector, c.id
 LIMIT %s
 """
 
 LEXICAL_REGULATION = f"""
-SELECT c.id, c.text, d.title, c.section_no
+SELECT c.id, c.text, d.title, c.section_no, d.id
 FROM reg_clause c
 JOIN reg_doc d ON d.id = c.reg_doc_id
 WHERE to_tsvector('english', c.text) @@ to_tsquery('english', %s) AND {IN_FORCE_FILTER}
-ORDER BY ts_rank_cd(to_tsvector('english', c.text), to_tsquery('english', %s)) DESC
+ORDER BY ts_rank_cd(to_tsvector('english', c.text), to_tsquery('english', %s)) DESC, c.id
 LIMIT %s
 """
 
 DENSE_POLICY = """
-SELECT tc.id, tc.text, td.title, tc.section_no
+SELECT tc.id, tc.text, td.title, tc.section_no, td.id
 FROM tenant_clause tc
 JOIN tenant_doc td ON td.id = tc.tenant_doc_id
 WHERE td.tenant_id = %s AND tc.embedding IS NOT NULL
-ORDER BY tc.embedding <=> %s::vector
+ORDER BY tc.embedding <=> %s::vector, tc.id
 LIMIT %s
 """
 
 LEXICAL_POLICY = """
-SELECT tc.id, tc.text, td.title, tc.section_no
+SELECT tc.id, tc.text, td.title, tc.section_no, td.id
 FROM tenant_clause tc
 JOIN tenant_doc td ON td.id = tc.tenant_doc_id
 WHERE td.tenant_id = %s
   AND to_tsvector('english', tc.text) @@ to_tsquery('english', %s)
-ORDER BY ts_rank_cd(to_tsvector('english', tc.text), to_tsquery('english', %s)) DESC
+ORDER BY ts_rank_cd(to_tsvector('english', tc.text), to_tsquery('english', %s)) DESC, tc.id
 LIMIT %s
 """
 
@@ -63,6 +63,7 @@ class Source:
     clause_id: int
     label: str
     text: str
+    document_id: int | None = None
 
 
 def tsquery_from(question: str) -> str:
@@ -105,7 +106,13 @@ def regulation_sources(connection, question: str, embedding: list[float], as_of:
         return []
     order = rerank(question, [row[1] for row in merged], limit)
     return [
-        Source("regulation", merged[index][0], _label("regulation", merged[index][2], merged[index][3]), merged[index][1])
+        Source(
+            "regulation",
+            merged[index][0],
+            _label("regulation", merged[index][2], merged[index][3]),
+            merged[index][1],
+            merged[index][4],
+        )
         for index in order
     ]
 
@@ -121,7 +128,13 @@ def policy_sources(connection, tenant_id: int, question: str, embedding: list[fl
         return []
     order = rerank(question, [row[1] for row in merged], limit)
     return [
-        Source("policy", merged[index][0], _label("policy", merged[index][2], merged[index][3]), merged[index][1])
+        Source(
+            "policy",
+            merged[index][0],
+            _label("policy", merged[index][2], merged[index][3]),
+            merged[index][1],
+            merged[index][4],
+        )
         for index in order
     ]
 
